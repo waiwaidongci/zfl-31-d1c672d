@@ -5,7 +5,7 @@ const ImportWriter = (function() {
       throw new Error("参数不完整");
     }
 
-    const { cols, rows, cells, name, threads } = parsedData;
+    const { cols, rows, cells, name, threads, versions } = parsedData;
 
     if (cols === null || rows === null || !cells) {
       throw new Error("导入数据不完整，无法创建方案");
@@ -24,12 +24,30 @@ const ImportWriter = (function() {
     const normalizedCells = normalizeCells(cells, cols, rows, threadList, importedThreads);
     const firstThreadId = threadList.length > 0 ? threadList[0].id : null;
 
-    schemeStore.update(newScheme.id, {
+    const updateData = {
       cells: normalizedCells,
       activeColor: firstThreadId,
       undo: [],
       redo: []
-    });
+    };
+
+    if (versions && Array.isArray(versions) && versions.length > 0 &&
+        typeof VersionHistory !== "undefined" && VersionHistory.importVersions) {
+      const validVersions = versions.filter(function(v) {
+        return v && v.id && v.timestamp && Array.isArray(v.cells);
+      }).map(function(v) {
+        const normalizedV = Object.assign({}, v);
+        if (Array.isArray(v.cells)) {
+          normalizedV.cells = normalizeCells(v.cells, v.cols || cols, v.rows || rows, threadList, importedThreads);
+        }
+        return normalizedV;
+      });
+      if (validVersions.length > 0) {
+        VersionHistory.importVersions(newScheme.id, validVersions);
+      }
+    }
+
+    schemeStore.update(newScheme.id, updateData);
 
     return schemeStore._schemes[newScheme.id];
   }
@@ -39,7 +57,7 @@ const ImportWriter = (function() {
       throw new Error("参数不完整");
     }
 
-    const { cols, rows, cells, name, threads } = parsedData;
+    const { cols, rows, cells, name, threads, versions } = parsedData;
 
     if (cols === null || rows === null || !cells) {
       throw new Error("导入数据不完整，无法覆盖方案");
@@ -70,6 +88,22 @@ const ImportWriter = (function() {
 
     if (options.rename && name) {
       updateData.name = resolveUniqueName(name, schemeStore, activeId);
+    }
+
+    if (versions && Array.isArray(versions) && versions.length > 0 &&
+        typeof VersionHistory !== "undefined" && VersionHistory.importVersions) {
+      const validVersions = versions.filter(function(v) {
+        return v && v.id && v.timestamp && Array.isArray(v.cells);
+      }).map(function(v) {
+        const normalizedV = Object.assign({}, v);
+        if (Array.isArray(v.cells)) {
+          normalizedV.cells = normalizeCells(v.cells, v.cols || cols, v.rows || rows, threadList, importedThreads);
+        }
+        return normalizedV;
+      });
+      if (validVersions.length > 0) {
+        VersionHistory.importVersions(activeId, validVersions);
+      }
     }
 
     const updated = schemeStore.update(activeId, updateData);

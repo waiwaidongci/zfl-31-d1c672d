@@ -56,6 +56,10 @@ const ImportParser = (function() {
       ? raw.threads.filter(t => t && typeof t === "object")
       : null;
 
+    const versions = Array.isArray(raw.versions)
+      ? raw.versions.filter(v => v && typeof v === "object")
+      : null;
+
     return {
       name,
       cols,
@@ -63,6 +67,7 @@ const ImportParser = (function() {
       cells,
       usage,
       threads,
+      versions,
       raw
     };
   }
