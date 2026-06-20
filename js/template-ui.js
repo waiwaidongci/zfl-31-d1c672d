@@ -161,22 +161,6 @@ const TemplateUI = (function() {
         render();
       });
 
-      card.addEventListener("dblclick", () => {
-        selectedTemplateId = card.dataset.id;
-        const template = TemplateData.getById(selectedTemplateId);
-        if (template) {
-          clearPreview();
-          TemplateApplier.applyTemplate(template, { mode: applyMode });
-          selectedTemplateId = null;
-          render();
-          if (typeof window.render === 'function') {
-            window.render();
-          }
-          if (typeof window.renderSchemeList === 'function') {
-            window.renderSchemeList();
-          }
-        }
-      });
     });
   }
 
