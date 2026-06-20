@@ -9,8 +9,14 @@
     body { margin: 0; font-family: Arial, "PingFang SC", sans-serif; background: #f3efe7; color: #282018; }
     header { padding: 18px 24px; background: #fffaf2; border-bottom: 1px solid #d9cdbc; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
     h1 { margin: 0; font-size: 26px; }
+    h2 { font-size: 17px; margin: 14px 0 8px; }
+    h3 { font-size: 14px; margin: 0; }
     button { border: 0; border-radius: 8px; padding: 10px 13px; background: #8d3e37; color: #fff; font-weight: 800; cursor: pointer; }
     button.secondary { background: #71675c; }
+    button.ghost { background: transparent; color: #71675c; padding: 4px 8px; font-weight: 600; }
+    button.ghost:hover { background: #e8dfd0; }
+    button.danger { background: transparent; color: #a03a2e; padding: 4px 8px; font-weight: 600; }
+    button.danger:hover { background: #f5dcd7; }
     input, select { width: 100%; border: 1px solid #d9cdbc; border-radius: 6px; padding: 9px; font: inherit; background: #fff; }
     label { display: block; margin: 9px 0 5px; color: #76695e; font-size: 13px; }
     .app { display: grid; grid-template-columns: 280px 1fr 320px; gap: 16px; padding: 16px; }
@@ -26,17 +32,63 @@
     .preview { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; border: 1px solid #d9cdbc; padding: 6px; margin-top: 8px; }
     .mini { aspect-ratio: 1; border-radius: 2px; }
     .toolbar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .toolbar-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
     .warning { color: #a03a2e; font-weight: 800; }
+
+    .scheme-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .scheme-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; padding-right: 4px; }
+    .scheme-item {
+      background: #fff;
+      border: 2px solid #d9cdbc;
+      border-radius: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .scheme-item:hover { border-color: #a89377; background: #fff8ec; }
+    .scheme-item.active {
+      border-color: #8d3e37;
+      background: #faf0e0;
+      box-shadow: 0 0 0 2px rgba(141, 62, 55, 0.15);
+    }
+    .scheme-item-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .scheme-name {
+      font-weight: 700;
+      font-size: 14px;
+      color: #282018;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .scheme-item.active .scheme-name { color: #8d3e37; }
+    .scheme-meta { font-size: 11px; color: #8a7c6c; margin-top: 4px; }
+    .scheme-actions { display: flex; gap: 2px; flex-shrink: 0; }
+    .scheme-rename-input {
+      width: 100%;
+      padding: 4px 6px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .empty-hint { color: #a89988; font-size: 13px; text-align: center; padding: 16px 8px; font-style: italic; }
+
     @media (max-width: 1000px) { header { display: block; } .app { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <header>
     <div><h1>手工织锦纹样排版台</h1><div>绘制经纬网格纹样，统计色线用量并保存方案。</div></div>
-    <div class="toolbar"><button id="saveBtn">保存方案</button><button id="exportBtn" class="secondary">导出JSON</button></div>
+    <div class="toolbar"><button id="saveBtn">保存当前方案</button><button id="exportBtn" class="secondary">导出JSON</button></div>
   </header>
   <main class="app">
     <aside class="panel">
+      <div class="scheme-header">
+        <h2 style="margin:0;">命名方案库</h2>
+        <button id="newSchemeBtn" class="secondary" style="padding:6px 10px;font-size:13px;">+ 新建</button>
+      </div>
+      <div class="scheme-list" id="schemeList"></div>
+
       <h2>画布</h2>
       <label>经向列数</label><input id="cols" type="number" value="18" min="6" max="36">
       <label>纬向行数</label><input id="rows" type="number" value="14" min="6" max="32">
@@ -65,69 +117,482 @@
   </main>
   <script>
     const colors = ["#f7e7c4","#a6322d","#1f5f78","#d6a437","#355b38","#713d7b","#1e1b18","#e98c52"];
+
+    const STORAGE_KEY = "zfl31Schemes";
+    const ACTIVE_KEY = "zfl31ActiveScheme";
+    const LEGACY_KEY = "zfl31Pattern";
+
+    function uid() {
+      return "s_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+    }
+
+    function defaultCells(cols, rows) {
+      return Array(cols * rows).fill(0);
+    }
+
+    const SchemeStore = {
+      _schemes: null,
+      _activeId: null,
+
+      load() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            this._schemes = JSON.parse(raw);
+          } else {
+            this._schemes = {};
+          }
+        } catch (e) {
+          this._schemes = {};
+        }
+        this._activeId = localStorage.getItem(ACTIVE_KEY);
+        this._migrateLegacy();
+        if (Object.keys(this._schemes).length === 0) {
+          this.create("默认方案", 18, 14);
+        }
+        if (!this._activeId || !this._schemes[this._activeId]) {
+          this._activeId = Object.keys(this._schemes)[0];
+          this._persistActive();
+        }
+      },
+
+      _migrateLegacy() {
+        const legacyRaw = localStorage.getItem(LEGACY_KEY);
+        if (!legacyRaw) return;
+        try {
+          const legacy = JSON.parse(legacyRaw);
+          if (!legacy || !Array.isArray(legacy.cells)) return;
+          const id = uid();
+          const now = Date.now();
+          this._schemes[id] = {
+            id,
+            name: "默认方案",
+            cols: legacy.cols || 18,
+            rows: legacy.rows || 14,
+            cells: legacy.cells,
+            activeColor: 1,
+            activeBlock: "dot",
+            undo: [],
+            redo: [],
+            createdAt: now,
+            updatedAt: now
+          };
+          if (!this._activeId) this._activeId = id;
+          this._persist();
+          this._persistActive();
+        } catch (e) {}
+      },
+
+      _persist() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(this._schemes));
+      },
+
+      _persistActive() {
+        localStorage.setItem(ACTIVE_KEY, this._activeId);
+      },
+
+      getAll() {
+        return Object.values(this._schemes).sort((a, b) => b.updatedAt - a.updatedAt);
+      },
+
+      getActive() {
+        return this._schemes[this._activeId];
+      },
+
+      getActiveId() {
+        return this._activeId;
+      },
+
+      setActive(id) {
+        if (this._schemes[id]) {
+          this._activeId = id;
+          this._persistActive();
+          return true;
+        }
+        return false;
+      },
+
+      update(id, patch) {
+        if (!this._schemes[id]) return null;
+        this._schemes[id] = { ...this._schemes[id], ...patch, updatedAt: Date.now() };
+        this._persist();
+        return this._schemes[id];
+      },
+
+      create(name, cols, rows) {
+        const id = uid();
+        const now = Date.now();
+        this._schemes[id] = {
+          id,
+          name: name || "新方案",
+          cols: cols || 18,
+          rows: rows || 14,
+          cells: defaultCells(cols || 18, rows || 14),
+          activeColor: 1,
+          activeBlock: "dot",
+          undo: [],
+          redo: [],
+          createdAt: now,
+          updatedAt: now
+        };
+        this._persist();
+        return this._schemes[id];
+      },
+
+      duplicate(id) {
+        const src = this._schemes[id];
+        if (!src) return null;
+        const newId = uid();
+        const now = Date.now();
+        this._schemes[newId] = {
+          ...JSON.parse(JSON.stringify(src)),
+          id: newId,
+          name: src.name + " 副本",
+          undo: [],
+          redo: [],
+          createdAt: now,
+          updatedAt: now
+        };
+        this._persist();
+        return this._schemes[newId];
+      },
+
+      remove(id) {
+        if (!this._schemes[id]) return false;
+        delete this._schemes[id];
+        if (Object.keys(this._schemes).length === 0) {
+          this.create("默认方案", 18, 14);
+        }
+        if (this._activeId === id) {
+          this._activeId = Object.keys(this._schemes)[0];
+          this._persistActive();
+        }
+        this._persist();
+        return true;
+      },
+
+      rename(id, name) {
+        if (!this._schemes[id]) return null;
+        this._schemes[id].name = name.trim() || "未命名方案";
+        this._schemes[id].updatedAt = Date.now();
+        this._persist();
+        return this._schemes[id];
+      },
+
+      saveActive() {
+        if (!this._activeId) return;
+        this._schemes[this._activeId].updatedAt = Date.now();
+        this._persist();
+      }
+    };
+
+    const AppState = {
+      dragging: false,
+
+      get cols() { return SchemeStore.getActive().cols; },
+      set cols(v) { SchemeStore.update(SchemeStore.getActiveId(), { cols: v }); },
+
+      get rows() { return SchemeStore.getActive().rows; },
+      set rows(v) { SchemeStore.update(SchemeStore.getActiveId(), { rows: v }); },
+
+      get cells() { return SchemeStore.getActive().cells; },
+      set cells(v) { SchemeStore.update(SchemeStore.getActiveId(), { cells: v }); },
+
+      get active() { return SchemeStore.getActive().activeColor; },
+      set active(v) { SchemeStore.update(SchemeStore.getActiveId(), { activeColor: v }); },
+
+      get block() { return SchemeStore.getActive().activeBlock; },
+      set block(v) { SchemeStore.update(SchemeStore.getActiveId(), { activeBlock: v }); },
+
+      get undo() { return SchemeStore.getActive().undo; },
+      set undo(v) { SchemeStore.update(SchemeStore.getActiveId(), { undo: v }); },
+
+      get redo() { return SchemeStore.getActive().redo; },
+      set redo(v) { SchemeStore.update(SchemeStore.getActiveId(), { redo: v }); },
+
+      resetHistory() {
+        SchemeStore.update(SchemeStore.getActiveId(), { undo: [], redo: [] });
+      }
+    };
+
     const grid = document.querySelector("#grid");
     const palette = document.querySelector("#palette");
     const stats = document.querySelector("#stats");
     const preview = document.querySelector("#preview");
     const risk = document.querySelector("#risk");
-    let cols = 18, rows = 14, active = 1, block = "dot", dragging = false;
-    let cells = [];
-    let undo = [], redo = [];
-    function init(loadSaved = true) {
-      const saved = loadSaved && JSON.parse(localStorage.getItem("zfl31Pattern") || "null");
-      if (saved) { cols = saved.cols; rows = saved.rows; cells = saved.cells; }
-      else { cols = Number(document.querySelector("#cols").value); rows = Number(document.querySelector("#rows").value); cells = Array(cols * rows).fill(0); }
-      document.querySelector("#cols").value = cols; document.querySelector("#rows").value = rows;
+    const schemeListEl = document.querySelector("#schemeList");
+
+    function renderSchemeList() {
+      const schemes = SchemeStore.getAll();
+      const activeId = SchemeStore.getActiveId();
+      if (schemes.length === 0) {
+        schemeListEl.innerHTML = '<div class="empty-hint">暂无方案</div>';
+        return;
+      }
+      schemeListEl.innerHTML = schemes.map(s => {
+        const isActive = s.id === activeId;
+        const meta = `${s.cols}×${s.rows} · ${s.cells.filter(v => v !== 0).length} 格已填`;
+        return `
+          <div class="scheme-item ${isActive ? 'active' : ''}" data-id="${s.id}">
+            <div class="scheme-item-head">
+              <span class="scheme-name" data-role="name">${escapeHtml(s.name)}</span>
+              <div class="scheme-actions">
+                <button class="ghost" data-action="rename" title="重命名">✎</button>
+                <button class="ghost" data-action="duplicate" title="复制">⧉</button>
+                <button class="danger" data-action="delete" title="删除">✕</button>
+              </div>
+            </div>
+            <div class="scheme-meta">${meta}</div>
+          </div>
+        `;
+      }).join("");
+
+      schemeListEl.querySelectorAll(".scheme-item").forEach(item => {
+        const id = item.dataset.id;
+
+        item.addEventListener("click", (e) => {
+          if (e.target.closest("[data-action]")) return;
+          switchScheme(id);
+        });
+
+        item.querySelector('[data-action="rename"]').addEventListener("click", (e) => {
+          e.stopPropagation();
+          startRename(id, item);
+        });
+
+        item.querySelector('[data-action="duplicate"]').addEventListener("click", (e) => {
+          e.stopPropagation();
+          const newScheme = SchemeStore.duplicate(id);
+          if (newScheme) {
+            SchemeStore.setActive(newScheme.id);
+            refreshAll();
+          }
+        });
+
+        item.querySelector('[data-action="delete"]').addEventListener("click", (e) => {
+          e.stopPropagation();
+          const sch = SchemeStore._schemes[id];
+          const count = Object.keys(SchemeStore._schemes).length;
+          const msg = count <= 1
+            ? "只剩一个方案，删除后将自动创建新的默认方案。确定删除吗？"
+            : `确定删除方案"${sch ? sch.name : ''}"吗？`;
+          if (confirm(msg)) {
+            SchemeStore.remove(id);
+            refreshAll();
+          }
+        });
+      });
+    }
+
+    function startRename(id, itemEl) {
+      const nameEl = itemEl.querySelector('[data-role="name"]');
+      const currentName = SchemeStore._schemes[id].name;
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "scheme-rename-input";
+      input.value = currentName;
+      nameEl.replaceWith(input);
+      input.focus();
+      input.select();
+
+      const finish = (save) => {
+        const val = input.value.trim();
+        if (save && val) {
+          SchemeStore.rename(id, val);
+        }
+        refreshAll();
+      };
+
+      input.addEventListener("blur", () => finish(true));
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); finish(true); }
+        else if (e.key === "Escape") { e.preventDefault(); finish(false); }
+      });
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function switchScheme(id) {
+      if (SchemeStore.setActive(id)) {
+        document.querySelector("#cols").value = AppState.cols;
+        document.querySelector("#rows").value = AppState.rows;
+        refreshAll();
+      }
+    }
+
+    function refreshAll() {
+      renderSchemeList();
       render();
     }
+
+    function init(loadSaved = true) {
+      SchemeStore.load();
+      document.querySelector("#cols").value = AppState.cols;
+      document.querySelector("#rows").value = AppState.rows;
+      render();
+      renderSchemeList();
+    }
+
     function render() {
-      palette.innerHTML = colors.map((c, i) => '<button class="swatch '+(i===active?'active':'')+'" data-color="'+i+'" style="background:'+c+'"></button>').join("");
-      palette.querySelectorAll("[data-color]").forEach(el => el.onclick = () => { active = Number(el.dataset.color); render(); });
-      grid.style.gridTemplateColumns = "repeat("+cols+", 1fr)";
-      grid.innerHTML = cells.map((v, i) => '<div class="cell" data-i="'+i+'" style="background:'+colors[v]+'"></div>').join("");
+      palette.innerHTML = colors.map((c, i) =>
+        '<button class="swatch '+(i===AppState.active?'active':'')+'" data-color="'+i+'" style="background:'+c+'"></button>'
+      ).join("");
+      palette.querySelectorAll("[data-color]").forEach(el =>
+        el.onclick = () => { AppState.active = Number(el.dataset.color); render(); renderSchemeList(); }
+      );
+      grid.style.gridTemplateColumns = "repeat("+AppState.cols+", 1fr)";
+      grid.innerHTML = AppState.cells.map((v, i) =>
+        '<div class="cell" data-i="'+i+'" style="background:'+colors[v]+'"></div>'
+      ).join("");
       grid.querySelectorAll(".cell").forEach(el => {
-        el.onpointerdown = () => { dragging = true; paint(Number(el.dataset.i)); };
-        el.onpointerenter = () => { if (dragging) paint(Number(el.dataset.i)); };
+        el.onpointerdown = () => { AppState.dragging = true; paint(Number(el.dataset.i)); };
+        el.onpointerenter = () => { if (AppState.dragging) paint(Number(el.dataset.i)); };
       });
-      window.onpointerup = () => dragging = false;
+      window.onpointerup = () => AppState.dragging = false;
+      document.querySelectorAll("[data-block]").forEach(btn =>
+        btn.classList.toggle("active", btn.dataset.block === AppState.block)
+      );
       renderStats();
     }
-    function snapshot() { undo.push([...cells]); redo = []; if (undo.length > 50) undo.shift(); }
+
+    function snapshot() {
+      const undoArr = [...AppState.undo, [...AppState.cells]];
+      if (undoArr.length > 50) undoArr.shift();
+      SchemeStore.update(SchemeStore.getActiveId(), { undo: undoArr, redo: [] });
+    }
+
     function paint(i) {
       snapshot();
       const targets = pattern(i);
-      targets.forEach(t => { if (t >= 0 && t < cells.length) cells[t] = active; });
+      const newCells = [...AppState.cells];
+      targets.forEach(t => { if (t >= 0 && t < newCells.length) newCells[t] = AppState.active; });
+      AppState.cells = newCells;
       render();
+      renderSchemeList();
     }
+
     function pattern(i) {
+      const cols = AppState.cols, rows = AppState.rows;
       const x = i % cols, y = Math.floor(i / cols);
-      if (block === "cross") return [i, idx(x-1,y), idx(x+1,y), idx(x,y-1), idx(x,y+1)].filter(v => v !== null);
-      if (block === "diamond") return [idx(x,y-1), idx(x-1,y), i, idx(x+1,y), idx(x,y+1)].filter(v => v !== null);
+      if (AppState.block === "cross")
+        return [i, idx(x-1,y), idx(x+1,y), idx(x,y-1), idx(x,y+1)].filter(v => v !== null);
+      if (AppState.block === "diamond")
+        return [idx(x,y-1), idx(x-1,y), i, idx(x+1,y), idx(x,y+1)].filter(v => v !== null);
       return [i];
     }
-    function idx(x,y) { return x < 0 || x >= cols || y < 0 || y >= rows ? null : y * cols + x; }
-    function renderStats() {
-      const counts = colors.map((_, i) => cells.filter(v => v === i).length);
-      stats.innerHTML = counts.map((n, i) => '<div class="stat"><span><span style="display:inline-block;width:14px;height:14px;background:'+colors[i]+'"></span> 色线'+i+'</span><b>'+n+'</b></div>').join("");
-      preview.innerHTML = Array.from({length: 36}, (_, i) => '<div class="mini" style="background:'+colors[cells[(i % 6) + Math.floor(i / 6) * cols] || colors[0]]+'"></div>').join("");
-      const riskRows = [];
-      for (let y = 0; y < rows; y++) {
-        let switches = 0;
-        for (let x = 1; x < cols; x++) if (cells[y*cols+x] !== cells[y*cols+x-1]) switches++;
-        if (switches > cols * .62) riskRows.push(y + 1);
-      }
-      risk.innerHTML = riskRows.length ? '<p class="warning">第'+riskRows.join("、")+'行换色过密，可能断线。</p>' : '<p>暂无明显断线风险。</p>';
+
+    function idx(x,y) {
+      return x < 0 || x >= AppState.cols || y < 0 || y >= AppState.rows ? null : y * AppState.cols + x;
     }
-    document.querySelectorAll("[data-block]").forEach(btn => btn.onclick = () => block = btn.dataset.block);
-    document.querySelector("#newBtn").onclick = () => { undo = []; redo = []; init(false); };
-    document.querySelector("#undoBtn").onclick = () => { if (!undo.length) return; redo.push([...cells]); cells = undo.pop(); render(); };
-    document.querySelector("#redoBtn").onclick = () => { if (!redo.length) return; undo.push([...cells]); cells = redo.pop(); render(); };
-    document.querySelector("#saveBtn").onclick = () => localStorage.setItem("zfl31Pattern", JSON.stringify({ cols, rows, cells }));
-    document.querySelector("#exportBtn").onclick = () => {
-      const data = { cols, rows, cells, usage: colors.map((color, i) => ({ color, count: cells.filter(v => v === i).length })) };
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "brocade-pattern.json"; a.click(); URL.revokeObjectURL(a.href);
+
+    function renderStats() {
+      const counts = colors.map((_, i) => AppState.cells.filter(v => v === i).length);
+      stats.innerHTML = counts.map((n, i) =>
+        '<div class="stat"><span><span style="display:inline-block;width:14px;height:14px;background:'+colors[i]+'"></span> 色线'+i+'</span><b>'+n+'</b></div>'
+      ).join("");
+      preview.innerHTML = Array.from({length: 36}, (_, i) =>
+        '<div class="mini" style="background:'+colors[AppState.cells[(i % 6) + Math.floor(i / 6) * AppState.cols] || colors[0]]+'"></div>'
+      ).join("");
+      const riskRows = [];
+      for (let y = 0; y < AppState.rows; y++) {
+        let switches = 0;
+        for (let x = 1; x < AppState.cols; x++)
+          if (AppState.cells[y*AppState.cols+x] !== AppState.cells[y*AppState.cols+x-1]) switches++;
+        if (switches > AppState.cols * .62) riskRows.push(y + 1);
+      }
+      risk.innerHTML = riskRows.length
+        ? '<p class="warning">第'+riskRows.join("、")+'行换色过密，可能断线。</p>'
+        : '<p>暂无明显断线风险。</p>';
+    }
+
+    document.querySelectorAll("[data-block]").forEach(btn =>
+      btn.onclick = () => { AppState.block = btn.dataset.block; render(); }
+    );
+
+    document.querySelector("#newBtn").onclick = () => {
+      const c = Number(document.querySelector("#cols").value);
+      const r = Number(document.querySelector("#rows").value);
+      SchemeStore.update(SchemeStore.getActiveId(), {
+        cols: c,
+        rows: r,
+        cells: defaultCells(c, r),
+        undo: [],
+        redo: []
+      });
+      render();
+      renderSchemeList();
     };
+
+    document.querySelector("#undoBtn").onclick = () => {
+      const undoArr = AppState.undo;
+      if (!undoArr.length) return;
+      const last = undoArr.pop();
+      SchemeStore.update(SchemeStore.getActiveId(), {
+        undo: undoArr,
+        redo: [...AppState.redo, [...AppState.cells]],
+        cells: last
+      });
+      render();
+      renderSchemeList();
+    };
+
+    document.querySelector("#redoBtn").onclick = () => {
+      const redoArr = AppState.redo;
+      if (!redoArr.length) return;
+      const last = redoArr.pop();
+      SchemeStore.update(SchemeStore.getActiveId(), {
+        redo: redoArr,
+        undo: [...AppState.undo, [...AppState.cells]],
+        cells: last
+      });
+      render();
+      renderSchemeList();
+    };
+
+    document.querySelector("#saveBtn").onclick = () => {
+      SchemeStore.saveActive();
+      renderSchemeList();
+      const btn = document.querySelector("#saveBtn");
+      const orig = btn.textContent;
+      btn.textContent = "已保存 ✓";
+      setTimeout(() => btn.textContent = orig, 1200);
+    };
+
+    document.querySelector("#exportBtn").onclick = () => {
+      const active = SchemeStore.getActive();
+      const data = {
+        name: active.name,
+        cols: active.cols,
+        rows: active.rows,
+        cells: active.cells,
+        usage: colors.map((color, i) => ({
+          color, count: active.cells.filter(v => v === i).length
+        }))
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = (active.name || "brocade-pattern") + ".json";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+
+    document.querySelector("#newSchemeBtn").onclick = () => {
+      const name = prompt("请输入新方案名称：", "新方案");
+      if (name === null) return;
+      const c = Number(document.querySelector("#cols").value) || 18;
+      const r = Number(document.querySelector("#rows").value) || 14;
+      const newScheme = SchemeStore.create(name, c, r);
+      SchemeStore.setActive(newScheme.id);
+      document.querySelector("#cols").value = c;
+      document.querySelector("#rows").value = r;
+      refreshAll();
+    };
+
     init();
   </script>
 </body>
