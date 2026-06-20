@@ -38,12 +38,18 @@ const YarnEstimate = (function() {
     };
   }
 
-  function computeWarpLengthCm(cols, cellSizeMm) {
-    return cols * cellSizeMm / 10;
+  function computeWarpLengthCm(cols, warpDensity, cellSizeMm) {
+    if (warpDensity && warpDensity > 0) {
+      return cols / warpDensity;
+    }
+    return cols * (cellSizeMm || 2.0) / 10;
   }
 
-  function computeWeftLengthCm(rows, cellSizeMm) {
-    return rows * cellSizeMm / 10;
+  function computeWeftLengthCm(rows, weftDensity, cellSizeMm) {
+    if (weftDensity && weftDensity > 0) {
+      return rows / weftDensity;
+    }
+    return rows * (cellSizeMm || 2.0) / 10;
   }
 
   function buildThreadLossMap(threads, schemeConfig) {
@@ -74,8 +80,8 @@ const YarnEstimate = (function() {
       allSummary = ProcessCalc.computeSummary(allSteps);
     }
 
-    const warpLenCm = computeWarpLengthCm(cols, schemeConfig.cellSizeMm);
-    const weftLenCm = computeWeftLengthCm(rows, schemeConfig.cellSizeMm);
+    const warpLenCm = computeWarpLengthCm(cols, schemeConfig.warpDensity, schemeConfig.cellSizeMm);
+    const weftLenCm = computeWeftLengthCm(rows, schemeConfig.weftDensity, schemeConfig.cellSizeMm);
 
     const colorStats = ThreadModel.computeColorStats(cells, threads);
     const sortedThreads = ThreadModel.sortByOrder(threads);

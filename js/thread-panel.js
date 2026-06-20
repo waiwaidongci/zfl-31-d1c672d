@@ -60,6 +60,14 @@ const ThreadPanel = (function() {
   }
 
   function renderThreadItem(thread, index, usedCount, isActive) {
+    const lossCfg = thread.lossConfig || {};
+    const lossFactor = typeof lossCfg.lossFactor === "number" ? lossCfg.lossFactor : 1.15;
+    const safetyMargin = typeof lossCfg.safetyMargin === "number" ? lossCfg.safetyMargin : 10;
+    const lossBadge = `
+      <span class="thread-loss-badge" title="损耗系数 ×${lossFactor} · 安全余量 +${safetyMargin}%">
+        ×${lossFactor} / +${safetyMargin}%
+      </span>
+    `;
     return `
       <div class="thread-item ${isActive ? 'active' : ''}" data-id="${thread.id}" data-index="${index}" draggable="true">
         <div class="thread-drag-handle" title="拖动排序">⋮⋮</div>
@@ -67,12 +75,12 @@ const ThreadPanel = (function() {
           <input type="color" class="thread-color-input" value="${thread.color}" data-action="color" title="点击修改颜色">
         </div>
         <div class="thread-info">
-          <div class="thread-name" data-role="name">${escapeHtml(thread.name)}</div>
+          <div class="thread-name" data-role="name">${escapeHtml(thread.name)} ${lossBadge}</div>
           <div class="thread-note" data-role="note">${escapeHtml(thread.note || "无备注")}</div>
         </div>
         <div class="thread-used">${usedCount} 格</div>
         <div class="thread-actions">
-          <button class="ghost" data-action="edit" title="编辑">✎</button>
+          <button class="ghost" data-action="edit" title="编辑色线/损耗配置">✎</button>
           <button class="ghost" data-action="moveUp" title="上移">↑</button>
           <button class="ghost" data-action="moveDown" title="下移">↓</button>
           <button class="danger" data-action="delete" title="删除">✕</button>
@@ -317,6 +325,14 @@ const ThreadPanel = (function() {
     const thread = ThreadStore.getById(id);
     if (!thread) return;
 
+    const scheme = SchemeStore && SchemeStore.getActive ? SchemeStore.getActive() : null;
+    const schemeConfig = (typeof YarnEstimate !== 'undefined')
+      ? YarnEstimate.ensureSchemeEstimateConfig(scheme)
+      : { defaultLossFactor: 1.15, defaultSafetyMargin: 10 };
+    const lossCfg = (typeof YarnEstimate !== 'undefined')
+      ? YarnEstimate.ensureThreadLossConfig(thread, schemeConfig)
+      : { lossFactor: 1.15, safetyMargin: 10 };
+
     const overlay = document.createElement("div");
     overlay.className = "thread-dialog-overlay";
     overlay.style.cssText = `
@@ -329,7 +345,7 @@ const ThreadPanel = (function() {
     dialog.className = "thread-dialog";
     dialog.style.cssText = `
       background: #fffaf2; border: 1px solid #d9cdbc; border-radius: 12px;
-      width: min(420px, 92vw);
+      width: min(460px, 92vw); max-height: 90vh; overflow-y: auto;
       box-shadow: 0 10px 40px rgba(40, 32, 24, 0.25);
     `;
 
@@ -341,7 +357,26 @@ const ThreadPanel = (function() {
         <label style="display: block; margin-bottom: 5px; color: #76695e; font-size: 13px;">颜色</label>
         <input type="color" id="threadColorInput" value="${thread.color}" style="width:100%;height:40px;padding:0;border:1px solid #d9cdbc;border-radius:6px;margin-bottom:12px;cursor:pointer;">
         <label style="display: block; margin-bottom: 5px; color: #76695e; font-size: 13px;">线材备注</label>
-        <textarea id="threadNoteInput" rows="3" style="width:100%;padding:8px;border:1px solid #d9cdbc;border-radius:6px;resize:vertical;">${escapeHtml(thread.note || "")}</textarea>
+        <textarea id="threadNoteInput" rows="2" style="width:100%;padding:8px;border:1px solid #d9cdbc;border-radius:6px;resize:vertical;margin-bottom:16px;">${escapeHtml(thread.note || "")}</textarea>
+
+        <div style="background:#fff8ec;border:1px solid #e8dfd0;border-radius:8px;padding:12px 14px;margin-bottom:4px;">
+          <div style="font-weight:700;font-size:14px;color:#5a4e42;margin-bottom:10px;">织造损耗配置</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div>
+              <label style="display:block;margin-bottom:5px;color:#76695e;font-size:12px;">损耗系数（例：1.15 = 15% 损耗）</label>
+              <input type="number" id="threadLossFactor" value="${lossCfg.lossFactor}" step="0.01" min="1" max="5" style="width:100%;padding:7px 8px;border:1px solid #d9cdbc;border-radius:6px;font-size:13px;">
+            </div>
+            <div>
+              <label style="display:block;margin-bottom:5px;color:#76695e;font-size:12px;">安全余量（%）</label>
+              <input type="number" id="threadSafetyMargin" value="${lossCfg.safetyMargin}" step="1" min="0" max="200" style="width:100%;padding:7px 8px;border:1px solid #d9cdbc;border-radius:6px;font-size:13px;">
+            </div>
+          </div>
+          <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+            <button type="button" id="threadLossResetBtn" class="secondary" style="padding:5px 12px;font-size:12px;">恢复方案默认</button>
+            <span style="font-size:11px;color:#8a7c6c;">方案默认：损耗 ${schemeConfig.defaultLossFactor} · 余量 ${schemeConfig.defaultSafetyMargin}%</span>
+          </div>
+        </div>
+
         <div style="display: flex; gap: 8px; margin-top: 20px;">
           <button id="cancelEditBtn" class="secondary" style="flex: 1; padding: 10px; border-radius: 8px; font-weight: 700;">取消</button>
           <button id="saveEditBtn" style="flex: 1; padding: 10px; border-radius: 8px; background: #8d3e37; color: #fff; font-weight: 700;">保存</button>
@@ -353,8 +388,17 @@ const ThreadPanel = (function() {
     document.body.appendChild(overlay);
 
     const nameInput = overlay.querySelector("#threadNameInput");
+    const lossFactorInput = overlay.querySelector("#threadLossFactor");
+    const safetyMarginInput = overlay.querySelector("#threadSafetyMargin");
+    const resetBtn = overlay.querySelector("#threadLossResetBtn");
+
     nameInput.focus();
     nameInput.select();
+
+    resetBtn.addEventListener("click", () => {
+      lossFactorInput.value = schemeConfig.defaultLossFactor;
+      safetyMarginInput.value = schemeConfig.defaultSafetyMargin;
+    });
 
     overlay.querySelector("#cancelEditBtn").addEventListener("click", () => {
       overlay.remove();
@@ -368,13 +412,29 @@ const ThreadPanel = (function() {
       const name = nameInput.value.trim();
       const color = overlay.querySelector("#threadColorInput").value;
       const note = overlay.querySelector("#threadNoteInput").value.trim();
+      const lossFactor = parseFloat(lossFactorInput.value);
+      const safetyMargin = parseFloat(safetyMarginInput.value);
 
       if (!name) {
         alert("色线名称不能为空");
         return;
       }
+      if (isNaN(lossFactor) || lossFactor < 1) {
+        alert("损耗系数必须大于等于 1");
+        return;
+      }
+      if (isNaN(safetyMargin) || safetyMargin < 0) {
+        alert("安全余量必须大于等于 0");
+        return;
+      }
 
-      ThreadStore.update(id, { name, color, note });
+      ThreadStore.update(id, {
+        name, color, note,
+        lossConfig: {
+          lossFactor: +lossFactor.toFixed(3),
+          safetyMargin: +safetyMargin.toFixed(1)
+        }
+      });
       overlay.remove();
       render();
       triggerChange();
