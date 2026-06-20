@@ -10,7 +10,8 @@ function uid() {
 }
 
 function defaultCells(cols, rows) {
-  return Array(cols * rows).fill(0);
+  const firstId = ThreadStore.getFirstId();
+  return Array(cols * rows).fill(firstId);
 }
 
 const SchemeStore = {
@@ -59,13 +60,16 @@ const SchemeStore = {
       }
       const id = uid();
       const now = Date.now();
+      const threads = ThreadStore.getAll();
+      const migratedCells = ThreadModel.migrateIndexToId(legacy.cells, threads);
+      const firstThreadId = threads.length > 0 ? threads[0].id : null;
       this._schemes[id] = {
         id,
         name: "默认方案",
         cols: legacy.cols || 18,
         rows: legacy.rows || 14,
-        cells: legacy.cells,
-        activeColor: 1,
+        cells: migratedCells,
+        activeColor: firstThreadId,
         activeBlock: "dot",
         undo: [],
         redo: [],
@@ -118,13 +122,14 @@ const SchemeStore = {
   create(name, cols, rows) {
     const id = uid();
     const now = Date.now();
+    const firstThreadId = ThreadStore.getFirstId();
     this._schemes[id] = {
       id,
       name: name || "新方案",
       cols: cols || 18,
       rows: rows || 14,
       cells: defaultCells(cols || 18, rows || 14),
-      activeColor: 1,
+      activeColor: firstThreadId,
       activeBlock: "dot",
       undo: [],
       redo: [],
@@ -219,7 +224,7 @@ const AppState = {
   }
 };
 
-let grid, palette, stats, preview, risk, schemeListEl;
+let grid, stats, preview, risk, schemeListEl;
 
 function escapeHtml(str) {
   const div = document.createElement("div");
@@ -236,7 +241,11 @@ function renderSchemeList() {
   }
   schemeListEl.innerHTML = schemes.map(s => {
     const isActive = s.id === activeId;
-    const meta = `${s.cols}×${s.rows} · ${s.cells.filter(v => v !== 0).length} 格已填`;
+    const filledCount = s.cells.filter(v => {
+      const firstId = ThreadStore.getFirstId();
+      return v !== firstId;
+    }).length;
+    const meta = `${s.cols}×${s.rows} · ${filledCount} 格已填`;
     return `
       <div class="scheme-item ${isActive ? 'active' : ''}" data-id="${s.id}">
         <div class="scheme-item-head">
@@ -329,23 +338,41 @@ function switchScheme(id) {
 function refreshAll() {
   renderSchemeList();
   render();
+  if (typeof ThreadPanel !== "undefined" && typeof ThreadPanel.refresh === 'function') {
+    ThreadPanel.refresh();
+  }
   if (typeof TemplateUI !== "undefined" && typeof TemplateUI.render === 'function') {
   }
 }
 
 function init(loadSaved = true) {
   grid = document.querySelector("#grid");
-  palette = document.querySelector("#palette");
   stats = document.querySelector("#stats");
   preview = document.querySelector("#preview");
   risk = document.querySelector("#risk");
   schemeListEl = document.querySelector("#schemeList");
+
+  ThreadStore.load();
 
   SchemeStore.load();
   document.querySelector("#cols").value = AppState.cols;
   document.querySelector("#rows").value = AppState.rows;
   render();
   renderSchemeList();
+
+  const threadPanelEl = document.querySelector("#threadPanel");
+  if (threadPanelEl && ThreadPanel && typeof ThreadPanel.init === 'function') {
+    ThreadPanel.init({
+      container: threadPanelEl,
+      onChange: () => {
+        render();
+        renderSchemeList();
+        if (typeof ProcessView !== "undefined" && ProcessView.isProcessView()) {
+          ProcessView.refresh();
+        }
+      }
+    });
+  }
 
   const templatePanel = document.querySelector("#templatePanel");
   if (templatePanel && TemplateUI && typeof TemplateUI.init === 'function') {
@@ -358,25 +385,34 @@ function init(loadSaved = true) {
 }
 
 function render() {
-  palette.innerHTML = colors.map((c, i) =>
-    '<button class="swatch '+(i===AppState.active?'active':'')+'" data-color="'+i+'" style="background:'+c+'"></button>'
-  ).join("");
-  palette.querySelectorAll("[data-color]").forEach(el =>
-    el.onclick = () => { AppState.active = Number(el.dataset.color); render(); renderSchemeList(); }
-  );
-  grid.style.gridTemplateColumns = "repeat("+AppState.cols+", 1fr)";
-  grid.innerHTML = AppState.cells.map((v, i) =>
-    '<div class="cell" data-i="'+i+'" style="background:'+colors[v]+'"></div>'
-  ).join("");
-  grid.querySelectorAll(".cell").forEach(el => {
-    el.onpointerdown = () => { AppState.dragging = true; paint(Number(el.dataset.i)); };
-    el.onpointerenter = () => { if (AppState.dragging) paint(Number(el.dataset.i)); };
+  const threads = ThreadStore.getAll();
+  const activeThreadId = AppState.active;
+
+  StatsRender.renderAll({
+    statsEl: stats,
+    previewEl: preview,
+    riskEl: risk,
+    gridEl: grid,
+    cells: AppState.cells,
+    cols: AppState.cols,
+    rows: AppState.rows,
+    activeThreadId,
+    threads,
+    onThreadSelect: (threadId) => {
+      AppState.active = threadId;
+      render();
+      renderSchemeList();
+    },
+    onCellDown: (i) => { AppState.dragging = true; paint(i); },
+    onCellEnter: (i) => { if (AppState.dragging) paint(i); }
   });
+
   window.onpointerup = () => AppState.dragging = false;
+
   document.querySelectorAll("[data-block]").forEach(btn =>
     btn.classList.toggle("active", btn.dataset.block === AppState.block)
   );
-  renderStats();
+
   if (typeof ProcessView !== "undefined" && ProcessView.isProcessView()) {
     ProcessView.refresh();
   }
@@ -410,32 +446,6 @@ function pattern(i) {
 
 function idx(x,y) {
   return x < 0 || x >= AppState.cols || y < 0 || y >= AppState.rows ? null : y * AppState.cols + x;
-}
-
-function renderStats() {
-  const counts = colors.map((_, i) => AppState.cells.filter(v => v === i).length);
-  stats.innerHTML = counts.map((n, i) =>
-    '<div class="stat"><span><span style="display:inline-block;width:14px;height:14px;background:'+colors[i]+'"></span> 色线'+i+'</span><b>'+n+'</b></div>'
-  ).join("");
-  preview.innerHTML = Array.from({length: 36}, (_, i) =>
-    '<div class="mini" style="background:'+colors[AppState.cells[(i % 6) + Math.floor(i / 6) * AppState.cols] || colors[0]]+'"></div>'
-  ).join("");
-  var riskRows = [];
-  if (typeof ProcessCalc !== "undefined") {
-    var steps = ProcessCalc.computeAllSteps(AppState.cells, AppState.cols, AppState.rows);
-    var summary = ProcessCalc.computeSummary(steps);
-    riskRows = summary.highRiskRows;
-  } else {
-    for (let y = 0; y < AppState.rows; y++) {
-      let switches = 0;
-      for (let x = 1; x < AppState.cols; x++)
-        if (AppState.cells[y*AppState.cols+x] !== AppState.cells[y*AppState.cols+x-1]) switches++;
-      if (switches > AppState.cols * .62) riskRows.push(y + 1);
-    }
-  }
-  risk.innerHTML = riskRows.length
-    ? '<p class="warning">第'+riskRows.join("、")+'行换色过密，可能断线。</p>'
-    : '<p>暂无明显断线风险。</p>';
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -486,6 +496,9 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelector("#saveBtn").onclick = () => {
     SchemeStore.saveActive();
     renderSchemeList();
+    if (typeof ThreadPanel !== "undefined" && ThreadPanel.refresh) {
+      ThreadPanel.refresh();
+    }
     const btn = document.querySelector("#saveBtn");
     const orig = btn.textContent;
     btn.textContent = "已保存 ✓";
@@ -494,13 +507,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.querySelector("#exportBtn").onclick = () => {
     const active = SchemeStore.getActive();
+    const threads = ThreadStore.getAll();
+    const colorStats = ThreadModel.computeColorStats(active.cells, threads);
     const data = {
       name: active.name,
       cols: active.cols,
       rows: active.rows,
       cells: active.cells,
-      usage: colors.map((color, i) => ({
-        color, count: active.cells.filter(v => v === i).length
+      threads: threads.map(t => ({
+        id: t.id,
+        name: t.name,
+        color: t.color,
+        note: t.note,
+        order: t.order
+      })),
+      usage: colorStats.map(s => ({
+        id: s.id,
+        name: s.name,
+        color: s.color,
+        note: s.note,
+        count: s.count
       }))
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -512,7 +538,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   if (typeof ImportDialog !== "undefined") {
-    ImportDialog.init({ colors });
+    ImportDialog.init({});
     document.querySelector("#importBtn").onclick = () => {
       ImportDialog.open({
         onImport: (result) => {

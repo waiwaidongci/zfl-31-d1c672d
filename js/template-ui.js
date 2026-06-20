@@ -124,10 +124,17 @@ const TemplateUI = (function() {
 
   function renderPreview(tpl) {
     const cells = [];
+    const threads = ThreadStore.getAll();
+    const sortedThreads = ThreadModel.sortByOrder(threads);
+    const firstColor = sortedThreads.length > 0 ? sortedThreads[0].color : "transparent";
+
     for (let y = 0; y < tpl.rows; y++) {
       for (let x = 0; x < tpl.cols; x++) {
         const v = tpl.pattern[y][x];
-        const color = colors[v] || "transparent";
+        let color = firstColor;
+        if (v !== 0 && v < sortedThreads.length) {
+          color = sortedThreads[v].color;
+        }
         const bg = v === 0 ? "transparent" : color;
         cells.push(`<div class="tcell" style="background:${bg};"></div>`);
       }

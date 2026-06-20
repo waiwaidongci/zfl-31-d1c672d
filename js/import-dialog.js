@@ -6,10 +6,8 @@ const ImportDialog = (function() {
   let validationResult = null;
   let onImportCallback = null;
   let fileInputEl = null;
-  let colorPalette = null;
 
   function init(options = {}) {
-    colorPalette = options.colors || window.colors || [];
     createDialog();
   }
 
@@ -54,6 +52,12 @@ const ImportDialog = (function() {
     parsedData = null;
     validationResult = null;
     onImportCallback = null;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
   }
 
   function renderFilePicker() {
@@ -103,9 +107,13 @@ const ImportDialog = (function() {
         ? SchemeStore.getActive()
         : null;
 
+      const threads = parsedData.threads && parsedData.threads.length > 0
+        ? parsedData.threads
+        : (ThreadStore && ThreadStore.getAll ? ThreadStore.getAll() : []);
+
       validationResult = ImportValidator.validate(parsedData, {
         currentScheme,
-        colorPalette,
+        threads,
         schemeStore: typeof SchemeStore !== "undefined" ? SchemeStore : null
       });
 
@@ -158,14 +166,19 @@ const ImportDialog = (function() {
   }
 
   function renderPreview() {
-    const { name, cols, rows, cells } = parsedData;
-    const maxColorIndex = colorPalette ? colorPalette.length - 1 : null;
-    const normalizedCells = normalizePreviewCells(cells, maxColorIndex);
-    const colorStats = ImportParser.computeColorStats(normalizedCells, colorPalette);
-    const filledCount = normalizedCells ? normalizedCells.filter(v => v !== 0).length : 0;
+    const { name, cols, rows, cells, threads } = parsedData;
+
+    const threadList = threads && threads.length > 0
+      ? threads
+      : (ThreadStore && ThreadStore.getAll ? ThreadStore.getAll() : []);
+
+    const normalizedCells = normalizePreviewCells(cells, threadList);
+    const colorStats = ImportParser.computeColorStats(normalizedCells, threadList);
+    const firstThreadId = threadList.length > 0 ? threadList[0].id : null;
+    const filledCount = normalizedCells ? normalizedCells.filter(v => v !== firstThreadId).length : 0;
     const totalCells = cols && rows ? cols * rows : 0;
 
-    const previewHtml = renderPreviewGrid(normalizedCells, cols, rows);
+    const previewHtml = renderPreviewGrid(normalizedCells, cols, rows, threadList);
 
     const infosHtml = renderValidationMessages(
       validationResult.infos,
@@ -189,6 +202,7 @@ const ImportDialog = (function() {
     const canOverwrite = validationResult.canOverwrite;
 
     const hasSizeMismatch = validationResult.warnings.some(w => w.code === "size_differs_from_current");
+    const hasThreadsData = threads && threads.length > 0;
 
     dialogEl.innerHTML = `
       <div style="padding: 20px 24px;">
@@ -216,16 +230,17 @@ const ImportDialog = (function() {
             <div style="color: #76695e; font-size: 13px;">
               <span>用色：${colorStats.filter(s => s.count > 0).length} 种颜色</span>
             </div>
+            ${hasThreadsData ? '<div style="color: #3c5482; font-size: 12px; margin-top: 8px;">📎 包含色线元数据</div>' : ''}
           </div>
         </div>
 
         <div style="margin-bottom: 16px;">
           <h4 style="margin: 0 0 8px; font-size: 14px;">用色统计</h4>
-          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
-            ${colorStats.map(s => `
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;">
+            ${colorStats.filter(s => s.count > 0).map(s => `
               <div style="display: flex; align-items: center; gap: 6px; padding: 4px 6px; background: #fff; border: 1px solid #e1d5c5; border-radius: 4px; font-size: 12px;">
                 <span style="width: 14px; height: 14px; border-radius: 2px; background: ${s.color}; flex-shrink: 0;"></span>
-                <span style="color: #76695e;">色${s.index}</span>
+                <span style="color: #76695e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(s.name)}</span>
                 <b style="margin-left: auto;">${s.count}</b>
               </div>
             `).join("")}
@@ -242,6 +257,7 @@ const ImportDialog = (function() {
                 <div style="font-size: 12px; color: #76695e; margin-top: 2px;">
                   在方案库中创建新方案，不影响当前方案
                   ${hasSizeMismatch ? '<br><span style="color: #a03a2e;">注：尺寸与当前方案不同</span>' : ''}
+                  ${hasThreadsData ? '<br><span style="color: #3c5482;">将合并色线到色线库</span>' : ''}
                 </div>
               </div>
             </label>
@@ -252,6 +268,7 @@ const ImportDialog = (function() {
                 <div style="font-size: 12px; color: #76695e; margin-top: 2px;">
                   用导入的方案替换当前编辑的方案
                   ${hasSizeMismatch ? '<br><span style="color: #a03a2e;">⚠️ 尺寸不同，当前画布将被替换</span>' : ''}
+                  ${hasThreadsData ? '<br><span style="color: #3c5482;">将合并色线到色线库</span>' : ''}
                 </div>
               </div>
             </label>
@@ -274,8 +291,8 @@ const ImportDialog = (function() {
     dialogEl.querySelector("#importConfirmBtn").addEventListener("click", handleConfirm);
   }
 
-  function renderPreviewGrid(cells, cols, rows) {
-    if (!cells || !cols || !rows) {
+  function renderPreviewGrid(cells, cols, rows, threads) {
+    if (!cells || !cols || !rows || !threads) {
       return '<div style="text-align:center;color:#a89988;padding:20px;">无预览</div>';
     }
 
@@ -283,10 +300,14 @@ const ImportDialog = (function() {
 
     let html = `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:1px;width:100%;height:100%;">`;
 
+    const threadMap = {};
+    threads.forEach(t => { threadMap[t.id] = t.color; });
+    const firstColor = threads.length > 0 ? threads[0].color : "transparent";
+
     for (let i = 0; i < cells.length && i < cols * rows; i++) {
       const v = cells[i];
-      const color = colorPalette[v] || "transparent";
-      const bg = v === 0 ? "transparent" : color;
+      const color = threadMap[v] || firstColor;
+      const bg = v === threads[0]?.id ? "transparent" : color;
       html += `<div style="background:${bg};border-radius:1px;"></div>`;
     }
 
@@ -327,20 +348,17 @@ const ImportDialog = (function() {
 
     const modeInput = dialogEl.querySelector('input[name="importMode"]:checked');
     const mode = modeInput ? modeInput.value : "new";
-    const maxColorIndex = colorPalette ? colorPalette.length - 1 : null;
 
     try {
       let result;
 
       if (mode === "overwrite") {
         result = ImportWriter.importAsOverwrite(parsedData, SchemeStore, {
-          rename: true,
-          maxColorIndex
+          rename: true
         });
       } else {
         result = ImportWriter.importAsNew(parsedData, SchemeStore, {
-          setActive: false,
-          maxColorIndex
+          setActive: false
         });
       }
 
@@ -377,19 +395,26 @@ const ImportDialog = (function() {
     }, 1800);
   }
 
-  function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
-  }
+  function normalizePreviewCells(cells, threads) {
+    if (!Array.isArray(cells) || !threads || !threads.length) return [];
+    const firstThreadId = threads[0].id;
+    const hasLegacyFormat = cells.some(v => typeof v === "number");
 
-  function normalizePreviewCells(cells, maxColorIndex) {
-    if (!Array.isArray(cells)) return [];
-    const hasMax = typeof maxColorIndex === "number" && maxColorIndex >= 0;
+    if (hasLegacyFormat) {
+      return cells.map(v => {
+        if (typeof v === "number" && Number.isInteger(v) && v >= 0 && v < threads.length) {
+          return threads[v].id;
+        }
+        return firstThreadId;
+      });
+    }
+
+    const threadIds = new Set(threads.map(t => t.id));
     return cells.map(v => {
-      if (typeof v !== "number" || !Number.isInteger(v) || v < 0) return 0;
-      if (hasMax && v > maxColorIndex) return 0;
-      return v;
+      if (typeof v === "string" && threadIds.has(v)) {
+        return v;
+      }
+      return firstThreadId;
     });
   }
 

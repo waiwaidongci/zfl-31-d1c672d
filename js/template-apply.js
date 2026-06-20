@@ -2,6 +2,18 @@ const TemplateApplier = (function() {
   const MODE_OVERWRITE = "overwrite";
   const MODE_SKIP = "skip";
 
+  function getThreadIdByIndex(index) {
+    const threads = ThreadStore.getAll();
+    if (index === 0) {
+      return threads.length > 0 ? threads[0].id : null;
+    }
+    const sortedThreads = ThreadModel.sortByOrder(threads);
+    if (index < sortedThreads.length) {
+      return sortedThreads[index].id;
+    }
+    return sortedThreads.length > 0 ? sortedThreads[0].id : null;
+  }
+
   function applyTemplate(template, options = {}) {
     const mode = options.mode || MODE_OVERWRITE;
     const writesBlank = template.writesBlank === true;
@@ -26,14 +38,17 @@ const TemplateApplier = (function() {
       const idx = y * cols + x;
       if (idx < 0 || idx >= newCells.length) return;
 
+      const threadId = getThreadIdByIndex(value);
+      const firstThreadId = getThreadIdByIndex(0);
+
       if (value === 0 && !writesBlank) return;
 
-      if (mode === MODE_SKIP && newCells[idx] !== 0) {
+      if (mode === MODE_SKIP && newCells[idx] !== firstThreadId) {
         return;
       }
 
-      if (newCells[idx] !== value) {
-        newCells[idx] = value;
+      if (threadId && newCells[idx] !== threadId) {
+        newCells[idx] = threadId;
         changed = true;
       }
     });

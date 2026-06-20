@@ -5,18 +5,28 @@ const ImportWriter = (function() {
       throw new Error("参数不完整");
     }
 
-    const { cols, rows, cells, name } = parsedData;
+    const { cols, rows, cells, name, threads } = parsedData;
 
     if (cols === null || rows === null || !cells) {
       throw new Error("导入数据不完整，无法创建方案");
     }
 
     const finalName = options.name || schemeStore.nextName(name || "导入方案");
+
+    const importedThreads = threads && Array.isArray(threads) ? threads : null;
+    if (importedThreads && importedThreads.length > 0 && ThreadStore && ThreadStore.importThreads) {
+      ThreadStore.importThreads(importedThreads, "merge");
+    }
+
     const newScheme = schemeStore.create(finalName, cols, rows);
 
-    const normalizedCells = normalizeCells(cells, cols, rows, options.maxColorIndex);
+    const threadList = ThreadStore && ThreadStore.getAll ? ThreadStore.getAll() : [];
+    const normalizedCells = normalizeCells(cells, cols, rows, threadList, importedThreads);
+    const firstThreadId = threadList.length > 0 ? threadList[0].id : null;
+
     schemeStore.update(newScheme.id, {
       cells: normalizedCells,
+      activeColor: firstThreadId,
       undo: [],
       redo: []
     });
@@ -29,10 +39,15 @@ const ImportWriter = (function() {
       throw new Error("参数不完整");
     }
 
-    const { cols, rows, cells, name } = parsedData;
+    const { cols, rows, cells, name, threads } = parsedData;
 
     if (cols === null || rows === null || !cells) {
       throw new Error("导入数据不完整，无法覆盖方案");
+    }
+
+    const importedThreads = threads && Array.isArray(threads) ? threads : null;
+    if (importedThreads && importedThreads.length > 0 && ThreadStore && ThreadStore.importThreads) {
+      ThreadStore.importThreads(importedThreads, "merge");
     }
 
     const activeId = schemeStore.getActiveId();
@@ -40,11 +55,15 @@ const ImportWriter = (function() {
       throw new Error("当前没有活动方案");
     }
 
-    const normalizedCells = normalizeCells(cells, cols, rows, options.maxColorIndex);
+    const threadList = ThreadStore && ThreadStore.getAll ? ThreadStore.getAll() : [];
+    const normalizedCells = normalizeCells(cells, cols, rows, threadList, importedThreads);
+    const firstThreadId = threadList.length > 0 ? threadList[0].id : null;
+
     const updateData = {
       cols,
       rows,
       cells: normalizedCells,
+      activeColor: firstThreadId,
       undo: [],
       redo: []
     };
@@ -64,25 +83,46 @@ const ImportWriter = (function() {
     return schemeStore.nextName(name);
   }
 
-  function normalizeCells(cells, cols, rows, maxColorIndex) {
+  function normalizeCells(cells, cols, rows, currentThreads, importedThreads) {
     const total = cols * rows;
     const result = [];
-    const hasMax = typeof maxColorIndex === "number" && maxColorIndex >= 0;
+    const hasLegacyFormat = cells.some(v => typeof v === "number");
+    const firstThreadId = currentThreads.length > 0 ? currentThreads[0].id : null;
 
-    for (let i = 0; i < total; i++) {
-      if (i < cells.length) {
-        const v = cells[i];
-        if (typeof v === "number" && Number.isInteger(v) && v >= 0) {
-          if (hasMax && v > maxColorIndex) {
-            result.push(0);
+    if (hasLegacyFormat) {
+      const sortedThreads = importedThreads && importedThreads.length > 0
+        ? [...importedThreads].sort((a, b) => (a.order || 0) - (b.order || 0))
+        : currentThreads;
+
+      for (let i = 0; i < total; i++) {
+        if (i < cells.length) {
+          const v = cells[i];
+          if (typeof v === "number" && Number.isInteger(v) && v >= 0 && v < sortedThreads.length) {
+            result.push(sortedThreads[v].id);
           } else {
-            result.push(v);
+            result.push(firstThreadId);
           }
         } else {
-          result.push(0);
+          result.push(firstThreadId);
         }
-      } else {
-        result.push(0);
+      }
+    } else {
+      const threadIds = new Set(currentThreads.map(t => t.id));
+      if (importedThreads && importedThreads.length > 0) {
+        importedThreads.forEach(t => threadIds.add(t.id));
+      }
+
+      for (let i = 0; i < total; i++) {
+        if (i < cells.length) {
+          const v = cells[i];
+          if (typeof v === "string" && threadIds.has(v)) {
+            result.push(v);
+          } else {
+            result.push(firstThreadId);
+          }
+        } else {
+          result.push(firstThreadId);
+        }
       }
     }
 

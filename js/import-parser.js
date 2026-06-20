@@ -52,24 +52,31 @@ const ImportParser = (function() {
       ? raw.usage.filter(u => u && typeof u === "object")
       : null;
 
+    const threads = Array.isArray(raw.threads)
+      ? raw.threads.filter(t => t && typeof t === "object")
+      : null;
+
     return {
       name,
       cols,
       rows,
       cells,
       usage,
+      threads,
       raw
     };
   }
 
-  function computeColorStats(cells, colorPalette) {
-    if (!Array.isArray(cells) || !Array.isArray(colorPalette)) {
+  function computeColorStats(cells, threads) {
+    if (!Array.isArray(cells) || !Array.isArray(threads)) {
       return [];
     }
-    return colorPalette.map((color, i) => ({
-      color,
-      index: i,
-      count: cells.filter(v => v === i).length
+    return threads.map(thread => ({
+      id: thread.id,
+      name: thread.name || "未命名",
+      color: thread.color || "#cccccc",
+      note: thread.note || "",
+      count: cells.filter(v => v === thread.id).length
     }));
   }
 

@@ -125,10 +125,12 @@ const ProcessView = (function() {
     html += '<div class="step-segments">';
     for (var j = 0; j < step.segments.length; j++) {
       var seg = step.segments[j];
-      var color = window.colors ? window.colors[seg.colorIndex] : "#ccc";
+      var thread = ThreadStore.getById(seg.threadId);
+      var color = thread ? thread.color : "#ccc";
+      var name = thread ? thread.name : "未知色线";
       html += '<div class="step-segment">';
       html += '<span class="segment-color" style="background:' + color + '"></span>';
-      html += '<span class="segment-info">色线' + seg.colorIndex + ' · 连续 ' + seg.length + ' 格</span>';
+      html += '<span class="segment-info">' + escapeHtml(name) + ' · 连续 ' + seg.length + ' 格</span>';
       html += '</div>';
     }
     html += '</div>';
@@ -150,7 +152,8 @@ const ProcessView = (function() {
     var scheme = SchemeStore.getActive();
     if (!scheme) return;
 
-    var data = ProcessCalc.buildExportData(scheme, window.colors || []);
+    var threads = ThreadStore.getAll();
+    var data = ProcessCalc.buildExportData(scheme, threads);
     var blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     var a = document.createElement("a");
     a.href = URL.createObjectURL(blob);

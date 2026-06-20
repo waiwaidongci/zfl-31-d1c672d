@@ -302,6 +302,154 @@ label { display: block; margin: 9px 0 5px; color: #76695e; font-size: 13px; }
   margin-bottom: 10px;
 }
 
+.thread-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.thread-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.thread-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 2px solid #d9cdbc;
+  border-radius: 8px;
+  padding: 8px 10px;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+
+.thread-item:hover {
+  border-color: #a89377;
+  background: #fff8ec;
+}
+
+.thread-item.active {
+  border-color: #8d3e37;
+  background: #faf0e0;
+  box-shadow: 0 0 0 2px rgba(141, 62, 55, 0.15);
+}
+
+.thread-item.active .thread-name {
+  color: #8d3e37;
+}
+
+.thread-item.dragging {
+  opacity: 0.5;
+}
+
+.thread-item.drag-over {
+  border-color: #8d3e37;
+  background: #faf0e0;
+}
+
+.thread-drag-handle {
+  cursor: grab;
+  color: #b8a990;
+  font-size: 12px;
+  line-height: 1;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.thread-drag-handle:active {
+  cursor: grabbing;
+}
+
+.thread-color {
+  flex-shrink: 0;
+}
+
+.thread-color-input {
+  width: 36px;
+  height: 36px;
+  border: 2px solid #d9cdbc;
+  border-radius: 6px;
+  padding: 2px;
+  cursor: pointer;
+  background: #fff;
+}
+
+.thread-color-input:hover {
+  border-color: #a89377;
+}
+
+.thread-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.thread-name {
+  font-weight: 700;
+  font-size: 13px;
+  color: #282018;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-note {
+  font-size: 11px;
+  color: #8a7c6c;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.thread-used {
+  font-size: 11px;
+  color: #8a7c6c;
+  flex-shrink: 0;
+  background: #f5efe3;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.thread-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.thread-rename-input {
+  width: 100%;
+  padding: 2px 4px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid #8d3e37;
+  border-radius: 4px;
+}
+
+.thread-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(40, 32, 24, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.thread-dialog {
+  background: #fffaf2;
+  border: 1px solid #d9cdbc;
+  border-radius: 12px;
+  width: min(420px, 92vw);
+  box-shadow: 0 10px 40px rgba(40, 32, 24, 0.25);
+}
+
 @media (max-width: 1000px) {
   header { display: block; }
   .app { grid-template-columns: 1fr; }

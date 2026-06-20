@@ -6,13 +6,17 @@ const ImportValidator = (function() {
 
   function validate(parsedData, options = {}) {
     const results = [];
-    const { currentScheme, colorPalette, schemeStore } = options;
+    const { currentScheme, threads, schemeStore } = options;
 
     results.push(...validateRequiredFields(parsedData));
 
     if (parsedData.cols !== null && parsedData.rows !== null && parsedData.cells !== null) {
       results.push(...validateDimensions(parsedData));
-      results.push(...validateCellValues(parsedData, colorPalette));
+      results.push(...validateCellValues(parsedData, threads));
+    }
+
+    if (parsedData.threads) {
+      results.push(...validateThreads(parsedData.threads));
     }
 
     if (currentScheme) {
@@ -36,6 +40,62 @@ const ImportValidator = (function() {
       infos,
       all: results
     };
+  }
+
+  function validateThreads(threads) {
+    const results = [];
+    if (!Array.isArray(threads) || threads.length === 0) {
+      results.push({
+        type: VALIDATION_WARNING,
+        code: "no_threads_data",
+        message: "文件中不包含色线元数据，将使用当前色线库",
+        field: "threads"
+      });
+      return results;
+    }
+
+    const ids = new Set();
+    let hasInvalid = false;
+
+    threads.forEach((t, i) => {
+      if (!t || typeof t !== "object") {
+        hasInvalid = true;
+        return;
+      }
+      if (typeof t.id !== "string" || !t.id) {
+        hasInvalid = true;
+        return;
+      }
+      if (ids.has(t.id)) {
+        results.push({
+          type: VALIDATION_WARNING,
+          code: "duplicate_thread_id",
+          message: `色线 ID 重复：${t.id}`,
+          field: "threads"
+        });
+      }
+      ids.add(t.id);
+    });
+
+    if (hasInvalid) {
+      results.push({
+        type: VALIDATION_WARNING,
+        code: "invalid_threads_data",
+        message: "部分色线数据格式无效，已忽略",
+        field: "threads"
+      });
+    }
+
+    if (threads.length > 0) {
+      results.push({
+        type: VALIDATION_INFO,
+        code: "has_threads_data",
+        message: `文件包含 ${threads.length} 种色线的元数据`,
+        field: "threads"
+      });
+    }
+
+    return results;
   }
 
   function validateRequiredFields(parsedData) {
@@ -102,39 +162,73 @@ const ImportValidator = (function() {
     return results;
   }
 
-  function validateCellValues(parsedData, colorPalette) {
+  function validateCellValues(parsedData, threads) {
     const results = [];
     const { cells } = parsedData;
 
     if (!cells || cells.length === 0) return results;
 
-    const maxColorIndex = cells.reduce((max, v) => {
-      if (typeof v !== "number" || !Number.isInteger(v) || v < 0) return max;
-      return Math.max(max, v);
-    }, 0);
+    const hasLegacyFormat = cells.some(v => typeof v === "number");
+    const hasNewFormat = cells.some(v => typeof v === "string");
 
-    const hasInvalidValues = cells.some(v =>
-      typeof v !== "number" || !Number.isInteger(v) || v < 0
-    );
-
-    if (hasInvalidValues) {
+    if (hasLegacyFormat && hasNewFormat) {
       results.push({
         type: VALIDATION_ERROR,
-        code: "invalid_cell_values",
-        message: "网格数据包含非数字或负数",
+        code: "mixed_cell_formats",
+        message: "网格数据格式混乱，同时包含数字和字符串 ID",
         field: "cells"
       });
+      return results;
     }
 
-    if (colorPalette && Array.isArray(colorPalette)) {
-      const paletteSize = colorPalette.length;
-      if (maxColorIndex >= paletteSize) {
+    if (hasLegacyFormat) {
+      const hasInvalidValues = cells.some(v =>
+        typeof v !== "number" || !Number.isInteger(v) || v < 0
+      );
+
+      if (hasInvalidValues) {
+        results.push({
+          type: VALIDATION_ERROR,
+          code: "invalid_cell_values",
+          message: "网格数据包含非数字或负数",
+          field: "cells"
+        });
+      }
+
+      const maxColorIndex = cells.reduce((max, v) => {
+        if (typeof v !== "number" || !Number.isInteger(v) || v < 0) return max;
+        return Math.max(max, v);
+      }, 0);
+
+      if (threads && Array.isArray(threads)) {
+        const threadCount = threads.length;
+        if (maxColorIndex >= threadCount) {
+          results.push({
+            type: VALIDATION_WARNING,
+            code: "color_index_out_of_range",
+            message: `文件中使用了色线索引 ${maxColorIndex}，超出文件色线数（${threadCount} 色），导入后将以底色显示`,
+            field: "cells",
+            detail: { maxColorIndex, threadCount }
+          });
+        }
+      }
+    }
+
+    if (hasNewFormat && threads && Array.isArray(threads)) {
+      const threadIds = new Set(threads.map(t => t.id));
+      const unknownIds = new Set();
+      cells.forEach(v => {
+        if (typeof v === "string" && !threadIds.has(v)) {
+          unknownIds.add(v);
+        }
+      });
+
+      if (unknownIds.size > 0) {
         results.push({
           type: VALIDATION_WARNING,
-          code: "color_index_out_of_range",
-          message: `文件中使用了色线 ${maxColorIndex + 1}，超出当前色线库（${paletteSize} 色），导入后将以底色显示`,
-          field: "cells",
-          detail: { maxColorIndex, paletteSize }
+          code: "unknown_thread_ids",
+          message: `文件中有 ${unknownIds.size} 个色线 ID 未在色线元数据中定义，导入后将以底色显示`,
+          field: "cells"
         });
       }
     }

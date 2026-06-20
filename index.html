@@ -23,8 +23,7 @@
       <label>经向列数</label><input id="cols" type="number" value="18" min="6" max="36">
       <label>纬向行数</label><input id="rows" type="number" value="14" min="6" max="32">
       <button id="newBtn">新建网格</button>
-      <h2>色线库</h2>
-      <div class="palette" id="palette"></div>
+      <div id="threadPanel"></div>
       <h2>基础纹样块</h2>
       <div class="blocks">
         <button data-block="dot" class="secondary">单点</button>
@@ -52,6 +51,9 @@
       <div id="risk"></div>
     </aside>
   </main>
+  <script src="js/thread-model.js"></script>
+  <script src="js/thread-store.js"></script>
+  <script src="js/stats-render.js"></script>
   <script src="js/template-data.js"></script>
   <script src="js/template-apply.js"></script>
   <script src="js/template-ui.js"></script>
@@ -61,6 +63,7 @@
   <script src="js/import-validator.js"></script>
   <script src="js/import-writer.js"></script>
   <script src="js/import-dialog.js"></script>
+  <script src="js/thread-panel.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

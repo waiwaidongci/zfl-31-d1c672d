@@ -13,16 +13,16 @@ const ProcessCalc = (function() {
       if (c === currentColor) {
         currentLength++;
       } else {
-        segments.push({ colorIndex: currentColor, length: currentLength });
+        segments.push({ threadId: currentColor, length: currentLength });
         currentColor = c;
         currentLength = 1;
       }
     }
-    segments.push({ colorIndex: currentColor, length: currentLength });
+    segments.push({ threadId: currentColor, length: currentLength });
 
     var switches = 0;
     for (var i = 1; i < segments.length; i++) {
-      if (segments[i].colorIndex !== segments[i - 1].colorIndex) {
+      if (segments[i].threadId !== segments[i - 1].threadId) {
         switches++;
       }
     }
@@ -76,11 +76,11 @@ const ProcessCalc = (function() {
       }
       for (var j = 0; j < step.segments.length; j++) {
         var seg = step.segments[j];
-        if (!colorUsage[seg.colorIndex]) {
-          colorUsage[seg.colorIndex] = { totalLength: 0, segmentCount: 0 };
+        if (!colorUsage[seg.threadId]) {
+          colorUsage[seg.threadId] = { totalLength: 0, segmentCount: 0 };
         }
-        colorUsage[seg.colorIndex].totalLength += seg.length;
-        colorUsage[seg.colorIndex].segmentCount++;
+        colorUsage[seg.threadId].totalLength += seg.length;
+        colorUsage[seg.threadId].segmentCount++;
       }
     }
 
@@ -92,25 +92,32 @@ const ProcessCalc = (function() {
     };
   }
 
-  function buildExportData(scheme, colorPalette) {
+  function buildExportData(scheme, threads) {
     var cells = scheme.cells;
     var cols = scheme.cols;
     var rows = scheme.rows;
     var steps = computeAllSteps(cells, cols, rows);
     var summary = computeSummary(steps);
 
+    var threadMap = {};
+    if (threads && Array.isArray(threads)) {
+      threads.forEach(function(t) { threadMap[t.id] = t; });
+    }
+
     var colorSummary = [];
     var keys = Object.keys(summary.colorUsage);
     for (var k = 0; k < keys.length; k++) {
-      var ci = Number(keys[k]);
+      var tid = keys[k];
+      var threadInfo = threadMap[tid] || {};
       colorSummary.push({
-        colorIndex: ci,
-        color: colorPalette[ci] || "#000000",
-        totalLength: summary.colorUsage[ci].totalLength,
-        segmentCount: summary.colorUsage[ci].segmentCount
+        threadId: tid,
+        name: threadInfo.name || "未知色线",
+        color: threadInfo.color || "#000000",
+        note: threadInfo.note || "",
+        totalLength: summary.colorUsage[tid].totalLength,
+        segmentCount: summary.colorUsage[tid].segmentCount
       });
     }
-    colorSummary.sort(function(a, b) { return a.colorIndex - b.colorIndex; });
 
     return {
       name: scheme.name,
@@ -125,6 +132,7 @@ const ProcessCalc = (function() {
           riskNote: s.riskNote
         };
       }),
+      threads: threads || [],
       summary: {
         totalSwitches: summary.totalSwitches,
         highRiskRows: summary.highRiskRows,
