@@ -106,6 +106,11 @@ const GridInteraction = (function() {
     const cell = _getCellFromPoint(e.clientX, e.clientY);
     if (!cell) return false;
 
+    if (typeof AppState !== 'undefined' && AppState.blockTileMode && SelectionState.getSelection() && AppState.block) {
+      e.preventDefault();
+      return true;
+    }
+
     _isDragging = true;
     _dragStartX = cell.x;
     _dragStartY = cell.y;
