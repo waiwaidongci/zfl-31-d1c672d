@@ -6,6 +6,7 @@
   <title>手工织锦纹样排版台</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/batch-toolbar.css">
+  <link rel="stylesheet" href="css/compare.css">
 </head>
 <body>
   <header>
@@ -37,7 +38,17 @@
         <button id="viewToggleBtn" class="secondary">织造工序视图</button>
         <button id="exportProcessBtn" class="secondary" style="display:none;">导出工序JSON</button>
       </div>
-      <div class="grid" id="grid"></div>
+      <div class="workspace-toggle-bar">
+        <button id="workspaceEditBtn" class="workspace-toggle-btn active">编辑工作区</button>
+        <button id="workspaceCompareBtn" class="workspace-toggle-btn">多方案对比</button>
+      </div>
+      <div id="editWorkspace">
+        <div class="grid" id="grid"></div>
+      </div>
+      <div id="compareWorkspace" class="compare-workspace">
+        <div id="compareSelector"></div>
+        <div id="compareView" style="display:none;"></div>
+      </div>
     </section>
     <aside class="panel">
       <div id="templatePanel"></div>
@@ -81,6 +92,9 @@
   <script src="js/import-writer.js"></script>
   <script src="js/import-dialog.js"></script>
   <script src="js/thread-panel.js"></script>
+  <script src="js/compare-calc.js"></script>
+  <script src="js/compare-selector.js"></script>
+  <script src="js/compare-view.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

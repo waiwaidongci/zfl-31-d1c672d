@@ -738,5 +738,66 @@ document.addEventListener("DOMContentLoaded", () => {
     batchPasteSelection();
   };
 
+  let currentWorkspace = 'edit';
+
+  function switchWorkspace(workspace) {
+    currentWorkspace = workspace;
+
+    const editWorkspace = document.querySelector("#editWorkspace");
+    const compareWorkspace = document.querySelector("#compareWorkspace");
+    const editBtn = document.querySelector("#workspaceEditBtn");
+    const compareBtn = document.querySelector("#workspaceCompareBtn");
+    const viewToggleBar = document.querySelector(".view-toggle-bar");
+
+    if (workspace === 'edit') {
+      editWorkspace.style.display = '';
+      compareWorkspace.classList.remove('active');
+      editBtn.classList.add('active');
+      compareBtn.classList.remove('active');
+      if (viewToggleBar) viewToggleBar.style.display = '';
+    } else {
+      editWorkspace.style.display = 'none';
+      compareWorkspace.classList.add('active');
+      editBtn.classList.remove('active');
+      compareBtn.classList.add('active');
+      if (viewToggleBar) viewToggleBar.style.display = 'none';
+
+      if (typeof CompareSelector !== "undefined") {
+        CompareSelector.refresh();
+      }
+    }
+  }
+
+  document.querySelector("#workspaceEditBtn").onclick = () => {
+    switchWorkspace('edit');
+  };
+
+  document.querySelector("#workspaceCompareBtn").onclick = () => {
+    switchWorkspace('compare');
+  };
+
+  if (typeof CompareSelector !== "undefined") {
+    CompareSelector.init({
+      container: document.querySelector("#compareSelector"),
+      onStartCompare: (schemeA, schemeB) => {
+        document.querySelector("#compareSelector").style.display = 'none';
+        document.querySelector("#compareView").style.display = '';
+
+        if (typeof CompareView !== "undefined") {
+          CompareView.init({
+            container: document.querySelector("#compareView"),
+            onBack: () => {
+              document.querySelector("#compareView").style.display = 'none';
+              document.querySelector("#compareView").innerHTML = '';
+              document.querySelector("#compareSelector").style.display = '';
+              CompareSelector.refresh();
+            }
+          });
+          CompareView.showCompare(schemeA, schemeB);
+        }
+      }
+    });
+  }
+
   init();
 });
