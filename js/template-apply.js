@@ -4,6 +4,7 @@ const TemplateApplier = (function() {
 
   function applyTemplate(template, options = {}) {
     const mode = options.mode || MODE_OVERWRITE;
+    const writesBlank = template.writesBlank === true;
     const cols = AppState.cols;
     const rows = AppState.rows;
     const newCells = [...AppState.cells];
@@ -25,7 +26,7 @@ const TemplateApplier = (function() {
       const idx = y * cols + x;
       if (idx < 0 || idx >= newCells.length) return;
 
-      if (value === 0) return;
+      if (value === 0 && !writesBlank) return;
 
       if (mode === MODE_SKIP && newCells[idx] !== 0) {
         return;
@@ -139,13 +140,14 @@ const TemplateApplier = (function() {
     const positions = [];
     const tCols = template.cols;
     const tRows = template.rows;
+    const writesBlank = template.writesBlank === true;
 
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
         const tx = x % tCols;
         const ty = y % tRows;
         const value = template.pattern[ty][tx];
-        if (value !== 0) {
+        if (value !== 0 || writesBlank) {
           positions.push({ x, y, value });
         }
       }

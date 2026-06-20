@@ -283,7 +283,8 @@ const TemplateData = (function() {
       cols: 1,
       rows: 1,
       pattern: [[_]],
-      isGround: true
+      isGround: true,
+      writesBlank: true
     },
     {
       id: "ground-solid",
