@@ -72,6 +72,7 @@ const SvgGenerator = (function() {
     const titleGap = 8;
     const infoGap = 6;
     const gridGap = 16;
+    const gridFrame = showGrid ? 3 : 0;
 
     const sorted = ThreadModel.sortByOrder(threads);
     const firstColor = sorted.length > 0 ? sorted[0].color : '#cccccc';
@@ -94,11 +95,11 @@ const SvgGenerator = (function() {
       contentY += gridGap;
     }
 
-    const gridX = marginLeft;
-    const gridY = contentY;
+    const gridX = marginLeft + gridFrame;
+    const gridY = contentY + gridFrame;
 
     if (showGrid) {
-      parts.push(`<rect x="${gridX - 3}" y="${gridY - 3}" width="${gridW + 6}" height="${gridH + 6}" fill="#72533c"/>`);
+      parts.push(`<rect x="${gridX - gridFrame}" y="${gridY - gridFrame}" width="${gridW + gridFrame * 2}" height="${gridH + gridFrame * 2}" fill="#72533c"/>`);
     }
 
     for (let y = 0; y < rows; y++) {
@@ -123,12 +124,13 @@ const SvgGenerator = (function() {
       }
     }
 
-    contentY = gridY + gridH + gridGap;
+    contentY = gridY + gridH + gridFrame;
 
-    let totalW = marginLeft + gridW + margin;
+    let totalW = marginLeft + gridW + gridFrame * 2 + margin;
     let totalH = contentY + margin;
 
     if (showLegend) {
+      contentY += gridGap;
       const legend = buildLegend(threads, colorStats, cellSize, marginLeft, contentY);
       parts.push(legend.svg);
       totalH = contentY + legend.height + margin;
