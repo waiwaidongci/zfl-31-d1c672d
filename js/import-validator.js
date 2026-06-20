@@ -20,7 +20,7 @@ const ImportValidator = (function() {
     }
 
     if (schemeStore) {
-      results.push(...checkDuplicateName(parsedData, schemeStore));
+      results.push(...checkDuplicateName(parsedData, schemeStore, options));
     }
 
     const errors = results.filter(r => r.type === VALIDATION_ERROR);
@@ -164,20 +164,39 @@ const ImportValidator = (function() {
     return results;
   }
 
-  function checkDuplicateName(parsedData, schemeStore) {
+  function checkDuplicateName(parsedData, schemeStore, options = {}) {
     const results = [];
     if (!schemeStore || typeof schemeStore.getAll !== "function") return results;
 
     const allSchemes = schemeStore.getAll();
-    const duplicate = allSchemes.find(s => s.name === parsedData.name);
+    const activeId = typeof schemeStore.getActiveId === "function"
+      ? schemeStore.getActiveId()
+      : null;
 
-    if (duplicate) {
+    const duplicateWithOthers = allSchemes.find(s =>
+      s.id !== activeId && s.name === parsedData.name
+    );
+    const duplicateWithActive = activeId && allSchemes.find(s =>
+      s.id === activeId && s.name === parsedData.name
+    );
+
+    if (duplicateWithOthers) {
       results.push({
         type: VALIDATION_WARNING,
-        code: "duplicate_name",
-        message: `已有名为"${parsedData.name}"的方案，新建时将自动重命名`,
+        code: "duplicate_name_others",
+        message: `已有名为"${parsedData.name}"的其他方案，导入时将自动重命名为不重复的名称`,
         field: "name",
-        detail: { existingId: duplicate.id }
+        detail: { existingId: duplicateWithOthers.id, scope: "others" }
+      });
+    }
+
+    if (duplicateWithActive) {
+      results.push({
+        type: VALIDATION_INFO,
+        code: "duplicate_name_active",
+        message: `方案名"${parsedData.name}"与当前方案相同，覆盖模式下将保留当前方案 ID 并更新内容`,
+        field: "name",
+        detail: { scope: "active" }
       });
     }
 

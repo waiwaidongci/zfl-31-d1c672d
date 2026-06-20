@@ -14,7 +14,7 @@ const ImportWriter = (function() {
     const finalName = options.name || schemeStore.nextName(name || "导入方案");
     const newScheme = schemeStore.create(finalName, cols, rows);
 
-    const normalizedCells = normalizeCells(cells, cols, rows);
+    const normalizedCells = normalizeCells(cells, cols, rows, options.maxColorIndex);
     schemeStore.update(newScheme.id, {
       cells: normalizedCells,
       undo: [],
@@ -40,7 +40,7 @@ const ImportWriter = (function() {
       throw new Error("当前没有活动方案");
     }
 
-    const normalizedCells = normalizeCells(cells, cols, rows);
+    const normalizedCells = normalizeCells(cells, cols, rows, options.maxColorIndex);
     const updateData = {
       cols,
       rows,
@@ -50,22 +50,34 @@ const ImportWriter = (function() {
     };
 
     if (options.rename && name) {
-      updateData.name = name;
+      updateData.name = resolveUniqueName(name, schemeStore, activeId);
     }
 
     const updated = schemeStore.update(activeId, updateData);
     return updated;
   }
 
-  function normalizeCells(cells, cols, rows) {
+  function resolveUniqueName(name, schemeStore, excludeId) {
+    const allSchemes = schemeStore.getAll();
+    const conflict = allSchemes.find(s => s.id !== excludeId && s.name === name);
+    if (!conflict) return name;
+    return schemeStore.nextName(name);
+  }
+
+  function normalizeCells(cells, cols, rows, maxColorIndex) {
     const total = cols * rows;
     const result = [];
+    const hasMax = typeof maxColorIndex === "number" && maxColorIndex >= 0;
 
     for (let i = 0; i < total; i++) {
       if (i < cells.length) {
         const v = cells[i];
         if (typeof v === "number" && Number.isInteger(v) && v >= 0) {
-          result.push(v);
+          if (hasMax && v > maxColorIndex) {
+            result.push(0);
+          } else {
+            result.push(v);
+          }
         } else {
           result.push(0);
         }

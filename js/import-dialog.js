@@ -159,11 +159,19 @@ const ImportDialog = (function() {
 
   function renderPreview() {
     const { name, cols, rows, cells } = parsedData;
-    const colorStats = ImportParser.computeColorStats(cells, colorPalette);
-    const filledCount = cells ? cells.filter(v => v !== 0).length : 0;
+    const maxColorIndex = colorPalette ? colorPalette.length - 1 : null;
+    const normalizedCells = normalizePreviewCells(cells, maxColorIndex);
+    const colorStats = ImportParser.computeColorStats(normalizedCells, colorPalette);
+    const filledCount = normalizedCells ? normalizedCells.filter(v => v !== 0).length : 0;
     const totalCells = cols && rows ? cols * rows : 0;
 
-    const previewHtml = renderPreviewGrid(cells, cols, rows);
+    const previewHtml = renderPreviewGrid(normalizedCells, cols, rows);
+
+    const infosHtml = renderValidationMessages(
+      validationResult.infos,
+      "info",
+      "ℹ️"
+    );
 
     const warningsHtml = renderValidationMessages(
       validationResult.warnings,
@@ -190,6 +198,7 @@ const ImportDialog = (function() {
         </div>
 
         ${errorsHtml}
+        ${infosHtml}
         ${warningsHtml}
 
         <div style="display: grid; grid-template-columns: 120px 1fr; gap: 16px; margin-bottom: 16px;">
@@ -288,9 +297,14 @@ const ImportDialog = (function() {
   function renderValidationMessages(messages, type, icon) {
     if (!messages || messages.length === 0) return "";
 
-    const bgColor = type === "error" ? "#fdf0ee" : "#fff8e6";
-    const borderColor = type === "error" ? "#f0c4be" : "#f0dfa8";
-    const textColor = type === "error" ? "#a03a2e" : "#8a6d2b";
+    let bgColor, borderColor, textColor;
+    if (type === "error") {
+      bgColor = "#fdf0ee"; borderColor = "#f0c4be"; textColor = "#a03a2e";
+    } else if (type === "warning") {
+      bgColor = "#fff8e6"; borderColor = "#f0dfa8"; textColor = "#8a6d2b";
+    } else {
+      bgColor = "#eef2fb"; borderColor = "#c6d4ee"; textColor = "#3c5482";
+    }
 
     const items = messages.map(m => `
       <div style="display: flex; gap: 8px; align-items: flex-start;">
@@ -313,17 +327,20 @@ const ImportDialog = (function() {
 
     const modeInput = dialogEl.querySelector('input[name="importMode"]:checked');
     const mode = modeInput ? modeInput.value : "new";
+    const maxColorIndex = colorPalette ? colorPalette.length - 1 : null;
 
     try {
       let result;
 
       if (mode === "overwrite") {
         result = ImportWriter.importAsOverwrite(parsedData, SchemeStore, {
-          rename: true
+          rename: true,
+          maxColorIndex
         });
       } else {
         result = ImportWriter.importAsNew(parsedData, SchemeStore, {
-          setActive: false
+          setActive: false,
+          maxColorIndex
         });
       }
 
@@ -364,6 +381,16 @@ const ImportDialog = (function() {
     const div = document.createElement("div");
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  function normalizePreviewCells(cells, maxColorIndex) {
+    if (!Array.isArray(cells)) return [];
+    const hasMax = typeof maxColorIndex === "number" && maxColorIndex >= 0;
+    return cells.map(v => {
+      if (typeof v !== "number" || !Number.isInteger(v) || v < 0) return 0;
+      if (hasMax && v > maxColorIndex) return 0;
+      return v;
+    });
   }
 
   return {
