@@ -405,6 +405,23 @@ function init(loadSaved = true) {
   if (typeof ProcessView !== "undefined") {
     ProcessView.init({ gridEl: grid });
   }
+
+  ExportConfig.load();
+  if (typeof ExportPreview !== "undefined") {
+    ExportPreview.init({
+      getCurrentData: () => {
+        const active = SchemeStore.getActive();
+        const threads = ThreadStore.getAll();
+        return {
+          cells: active.cells,
+          cols: active.cols,
+          rows: active.rows,
+          threads: threads,
+          schemeName: active.name
+        };
+      }
+    });
+  }
 }
 
 function render() {
@@ -681,6 +698,12 @@ document.addEventListener("DOMContentLoaded", () => {
     a.download = (active.name || "brocade-pattern") + ".json";
     a.click();
     URL.revokeObjectURL(a.href);
+  };
+
+  document.querySelector("#exportSvgBtn").onclick = () => {
+    if (typeof ExportPreview !== "undefined") {
+      ExportPreview.open();
+    }
   };
 
   if (typeof ImportDialog !== "undefined") {

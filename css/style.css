@@ -26,6 +26,7 @@ label { display: block; margin: 9px 0 5px; color: #76695e; font-size: 13px; }
 .mini { aspect-ratio: 1; border-radius: 2px; }
 .toolbar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .toolbar-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.toolbar-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; }
 .warning { color: #a03a2e; font-weight: 800; }
 
 .scheme-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }

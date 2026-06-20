@@ -7,11 +7,12 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/batch-toolbar.css">
   <link rel="stylesheet" href="css/compare.css">
+  <link rel="stylesheet" href="css/export-preview.css">
 </head>
 <body>
   <header>
     <div><h1>手工织锦纹样排版台</h1><div>绘制经纬网格纹样，统计色线用量并保存方案。</div></div>
-    <div class="toolbar toolbar-3"><button id="saveBtn">保存当前方案</button><button id="exportBtn" class="secondary">导出JSON</button><button id="importBtn" class="secondary">导入JSON</button></div>
+    <div class="toolbar toolbar-4"><button id="saveBtn">保存当前方案</button><button id="exportBtn" class="secondary">导出JSON</button><button id="exportSvgBtn" class="secondary">导出SVG</button><button id="importBtn" class="secondary">导入JSON</button></div>
   </header>
   <main class="app">
     <aside class="panel">
@@ -95,6 +96,9 @@
   <script src="js/compare-calc.js"></script>
   <script src="js/compare-selector.js"></script>
   <script src="js/compare-view.js"></script>
+  <script src="js/svg-generator.js"></script>
+  <script src="js/export-config.js"></script>
+  <script src="js/export-preview.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
