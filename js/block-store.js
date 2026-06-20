@@ -75,18 +75,26 @@ const BlockStore = (function() {
 
   function update(id, patch) {
     if (!_blocks[id]) return null;
+
+    const oldCols = _blocks[id].cols;
+    const oldRows = _blocks[id].rows;
+    const newCols = patch.cols != null ? patch.cols : oldCols;
+    const newRows = patch.rows != null ? patch.rows : oldRows;
+    const sizeChanged = newCols !== oldCols || newRows !== oldRows;
+
     _blocks[id] = {
       ..._blocks[id],
       ...patch,
       updatedAt: Date.now()
     };
-    if (patch.cols || patch.rows) {
-      const newCols = patch.cols || _blocks[id].cols;
-      const newRows = patch.rows || _blocks[id].rows;
-      _blocks[id].pattern = resizePattern(_blocks[id].pattern, _blocks[id].cols, _blocks[id].rows, newCols, newRows);
-      _blocks[id].cols = newCols;
-      _blocks[id].rows = newRows;
+
+    if (sizeChanged && patch.pattern == null) {
+      _blocks[id].pattern = resizePattern(_blocks[id].pattern, oldCols, oldRows, newCols, newRows);
     }
+
+    _blocks[id].cols = newCols;
+    _blocks[id].rows = newRows;
+
     _persist();
     return _blocks[id];
   }

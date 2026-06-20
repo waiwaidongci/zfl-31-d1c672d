@@ -505,14 +505,8 @@ function canApplyBlock(i, blockId) {
   const cols = AppState.cols, rows = AppState.rows;
   const x = i % cols, y = Math.floor(i / cols);
 
-  if (blockId === "dot") return true;
-
-  if (blockId === "cross") {
-    return x > 0 && x < cols - 1 && y > 0 && y < rows - 1;
-  }
-
-  if (blockId === "diamond") {
-    return x > 0 && x < cols - 1 && y > 0 && y < rows - 1;
+  if (!blockId || typeof blockId !== "string" || !blockId.startsWith("b_")) {
+    return true;
   }
 
   const bounds = BlockStore.getBlockBounds(blockId);
