@@ -3,9 +3,15 @@ const VersionTimelineUI = (function() {
   var _container = null;
   var _currentSchemeId = null;
   var _selectedVersionId = null;
+  var _compareMode = false;
+  var _compareVersionAId = null;
+  var _compareVersionBId = null;
+  var _onStartVersionCompare = null;
+  var _areaSelection = null;
 
   function init(options) {
     _container = options.container || null;
+    _onStartVersionCompare = options.onStartVersionCompare || null;
     if (!_container) return;
 
     EventBus.on("version:created", function() { refresh(); });
@@ -17,6 +23,15 @@ const VersionTimelineUI = (function() {
     EventBus.on("playback:directionChanged", _handleDirectionChanged);
   }
 
+  function setCompareMode(enabled) {
+    _compareMode = enabled;
+    if (!enabled) {
+      _compareVersionAId = null;
+      _compareVersionBId = null;
+    }
+    refresh();
+  }
+
   function refresh() {
     if (!_container) return;
 
@@ -24,6 +39,9 @@ const VersionTimelineUI = (function() {
     if (activeId !== _currentSchemeId) {
       _currentSchemeId = activeId;
       _selectedVersionId = null;
+      _compareVersionAId = null;
+      _compareVersionBId = null;
+      _areaSelection = null;
       VersionHistory.stopPlayback();
     }
 
@@ -31,6 +49,8 @@ const VersionTimelineUI = (function() {
     var playbackState = VersionHistory.getPlaybackState();
 
     var html = '';
+
+    html += _renderCompareToggle(versions);
 
     if (versions.length > 0) {
       html += _renderPlaybackControls(versions, playbackState);
@@ -50,9 +70,21 @@ const VersionTimelineUI = (function() {
           ? v.riskRows.length + '行风险'
           : '无风险';
 
-        html += '<div class="vt-node ' + (isActive ? 'active' : '') + ' ' + (isPlaying ? 'playing' : '') + ' ' + riskClass + '" data-vid="' + v.id + '" data-idx="' + idx + '">';
+        var isCompA = v.id === _compareVersionAId;
+        var isCompB = v.id === _compareVersionBId;
+        var compClass = isCompA ? 'comp-slot-a' : (isCompB ? 'comp-slot-b' : '');
+
+        html += '<div class="vt-node ' + (isActive ? 'active' : '') + ' ' + (isPlaying ? 'playing' : '') + ' ' + riskClass + ' ' + compClass + '" data-vid="' + v.id + '" data-idx="' + idx + '">';
         html += '  <div class="vt-node-line"></div>';
         html += '  <div class="vt-node-dot"></div>';
+
+        if (_compareMode) {
+          html += '  <div class="vt-compare-select">';
+          html += '    <button class="vt-comp-btn vt-comp-a' + (isCompA ? ' active' : '') + '" data-vid="' + v.id + '" data-comp-slot="A" title="设为对比 A">A</button>';
+          html += '    <button class="vt-comp-btn vt-comp-b' + (isCompB ? ' active' : '') + '" data-vid="' + v.id + '" data-comp-slot="B" title="设为对比 B">B</button>';
+          html += '  </div>';
+        }
+
         html += '  <div class="vt-node-card">';
         html += '    <div class="vt-card-header">';
         html += '      <span class="vt-label">' + _escHtml(label) + '</span>';
@@ -80,6 +112,7 @@ const VersionTimelineUI = (function() {
 
         html += '    <div class="vt-card-actions">';
         html += '      <button class="vt-btn vt-btn-restore" data-vid="' + v.id + '" data-action="restore">恢复为新方案</button>';
+        html += '      <button class="vt-btn vt-btn-restore-cur" data-vid="' + v.id + '" data-action="restore-current">恢复到当前</button>';
         html += '      <button class="vt-btn vt-btn-label" data-vid="' + v.id + '" data-action="label">标记</button>';
         html += '      <button class="vt-btn vt-btn-delete" data-vid="' + v.id + '" data-action="delete">删除</button>';
         html += '    </div>';
@@ -91,12 +124,47 @@ const VersionTimelineUI = (function() {
       html += '</div>';
     }
 
+    if (_compareMode && _compareVersionAId && _compareVersionBId) {
+      html += _renderCompareStartBar();
+    }
+
     if (_selectedVersionId) {
       html += _renderDetailPanel(activeId, _selectedVersionId);
     }
 
     _container.innerHTML = html;
     _bindEvents(activeId);
+  }
+
+  function _renderCompareToggle(versions) {
+    var canCompare = versions && versions.length >= 2;
+    var html = '<div class="vt-section-toggle">';
+    html += '  <h2>版本历史</h2>';
+    if (canCompare) {
+      html += '  <button class="vt-section-toggle-btn vt-compare-toggle' + (_compareMode ? ' active' : '') + '" data-action="toggle-compare">' + (_compareMode ? '退出对比' : '版本对比') + '</button>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function _renderCompareStartBar() {
+    var verA = VersionHistory.getVersion(_currentSchemeId, _compareVersionAId);
+    var verB = VersionHistory.getVersion(_currentSchemeId, _compareVersionBId);
+    var labelA = verA ? (verA.label || _formatTime(verA.timestamp)) : 'A';
+    var labelB = verB ? (verB.label || _formatTime(verB.timestamp)) : 'B';
+
+    var html = '<div class="vt-compare-start-bar">';
+    html += '  <div class="vt-compare-start-info">';
+    html += '    <span class="vt-compare-chip chip-a">A: ' + _escHtml(labelA) + '</span>';
+    html += '    <span class="vt-compare-vs">VS</span>';
+    html += '    <span class="vt-compare-chip chip-b">B: ' + _escHtml(labelB) + '</span>';
+    html += '  </div>';
+    html += '  <div class="vt-compare-start-actions">';
+    html += '    <button class="vt-btn" data-action="swap-compare">⇄ 交换</button>';
+    html += '    <button class="vt-btn vt-btn-restore" data-action="start-compare">开始对比</button>';
+    html += '  </div>';
+    html += '</div>';
+    return html;
   }
 
   function _renderPlaybackControls(versions, playbackState) {
@@ -215,8 +283,13 @@ const VersionTimelineUI = (function() {
     }
     html += '  </div>';
 
-    html += '  <div class="vt-detail-actions">';
-    html += '    <button class="vt-btn vt-btn-restore" data-vid="' + version.id + '" data-action="restore">恢复为新方案</button>';
+    html += '  <div class="vt-detail-section"><h4>局部区域恢复</h4>';
+    html += '    <p class="vt-area-hint">先在编辑区用选择模式框选区域，再点击下方按钮将该区域从此历史版本恢复到当前方案。</p>';
+    html += '    <div class="vt-detail-actions vt-restore-actions">';
+    html += '      <button class="vt-btn vt-btn-restore" data-vid="' + version.id + '" data-action="restore">恢复为新方案</button>';
+    html += '      <button class="vt-btn vt-btn-restore-cur" data-vid="' + version.id + '" data-action="restore-current">整体恢复到当前</button>';
+    html += '      <button class="vt-btn vt-btn-restore-area" data-vid="' + version.id + '" data-action="restore-area">恢复所选区域</button>';
+    html += '    </div>';
     html += '  </div>';
 
     html += '</div>';
@@ -225,6 +298,50 @@ const VersionTimelineUI = (function() {
 
   function _bindEvents(schemeId) {
     if (!_container) return;
+
+    var toggleCompareBtn = _container.querySelector('[data-action="toggle-compare"]');
+    if (toggleCompareBtn) {
+      toggleCompareBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        setCompareMode(!_compareMode);
+      });
+    }
+
+    var startCompareBtn = _container.querySelector('[data-action="start-compare"]');
+    if (startCompareBtn) {
+      startCompareBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        _handleStartCompare(schemeId);
+      });
+    }
+
+    var swapCompareBtn = _container.querySelector('[data-action="swap-compare"]');
+    if (swapCompareBtn) {
+      swapCompareBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var temp = _compareVersionAId;
+        _compareVersionAId = _compareVersionBId;
+        _compareVersionBId = temp;
+        refresh();
+      });
+    }
+
+    var compBtns = _container.querySelectorAll('[data-comp-slot]');
+    compBtns.forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var vid = btn.dataset.vid;
+        var slot = btn.dataset.compSlot;
+        if (slot === 'A') {
+          _compareVersionAId = _compareVersionAId === vid ? null : vid;
+          if (_compareVersionBId === vid) _compareVersionBId = null;
+        } else {
+          _compareVersionBId = _compareVersionBId === vid ? null : vid;
+          if (_compareVersionAId === vid) _compareVersionAId = null;
+        }
+        refresh();
+      });
+    });
 
     _container.querySelectorAll("[data-vid]").forEach(function(el) {
       el.addEventListener("click", function(e) {
@@ -242,6 +359,10 @@ const VersionTimelineUI = (function() {
           if (!vid) return;
           if (action === "restore") {
             _handleRestore(schemeId, vid);
+          } else if (action === "restore-current") {
+            _handleRestoreCurrent(schemeId, vid);
+          } else if (action === "restore-area") {
+            _handleRestoreArea(schemeId, vid);
           } else if (action === "label") {
             _handleLabel(schemeId, vid);
           } else if (action === "delete") {
@@ -340,6 +461,17 @@ const VersionTimelineUI = (function() {
     }
   }
 
+  function _handleStartCompare(schemeId) {
+    if (!_compareVersionAId || !_compareVersionBId) return;
+    if (typeof _onStartVersionCompare === 'function') {
+      var verA = VersionHistory.getVersion(schemeId, _compareVersionAId);
+      var verB = VersionHistory.getVersion(schemeId, _compareVersionBId);
+      if (verA && verB) {
+        _onStartVersionCompare(verA, verB, schemeId);
+      }
+    }
+  }
+
   function _handlePlaybackChange() {
     refresh();
   }
@@ -359,6 +491,35 @@ const VersionTimelineUI = (function() {
     }
   }
 
+  function _handleRestoreCurrent(schemeId, versionId) {
+    if (!confirm("确定将当前方案整体恢复到此历史版本吗？此操作可撤销。")) return;
+    var ok = VersionHistory.restoreFullToCurrentScheme(schemeId, versionId);
+    if (ok) {
+      EventBus.emit("grid:changed");
+      EventBus.emit("scheme:saved");
+    }
+  }
+
+  function _handleRestoreArea(schemeId, versionId) {
+    var selection = SelectionState.getSelection();
+    if (!selection) {
+      alert("请先在编辑区用“选择模式”框选要恢复的区域。");
+      return;
+    }
+    var rect = {
+      startX: selection.startX,
+      startY: selection.startY,
+      endX: selection.endX,
+      endY: selection.endY
+    };
+    var size = (rect.endX - rect.startX + 1) + "×" + (rect.endY - rect.startY + 1);
+    if (!confirm("确定将选中的 " + size + " 区域从此历史版本恢复到当前方案吗？此操作可撤销。")) return;
+    var ok = VersionHistory.restoreAreaToCurrentScheme(schemeId, versionId, rect);
+    if (ok) {
+      EventBus.emit("grid:changed");
+    }
+  }
+
   function _handleLabel(schemeId, versionId) {
     var version = VersionHistory.getVersion(schemeId, versionId);
     if (!version) return;
@@ -373,6 +534,8 @@ const VersionTimelineUI = (function() {
     if (!confirm("确定删除此版本快照吗？")) return;
     VersionHistory.deleteVersion(schemeId, versionId);
     if (_selectedVersionId === versionId) _selectedVersionId = null;
+    if (_compareVersionAId === versionId) _compareVersionAId = null;
+    if (_compareVersionBId === versionId) _compareVersionBId = null;
     refresh();
   }
 
@@ -403,6 +566,7 @@ const VersionTimelineUI = (function() {
 
   return {
     init: init,
-    refresh: refresh
+    refresh: refresh,
+    setCompareMode: setCompareMode
   };
 })();

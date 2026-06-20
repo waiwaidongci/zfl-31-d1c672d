@@ -98,11 +98,134 @@ const VersionHistory = (function() {
     SchemeStore.update(newScheme.id, {
       cells: normalizedCells,
       undo: [],
-      redo: []
+      redo: [],
+      versions: []
     });
 
     EventBus.emit("version:restored", newScheme.id, versionId);
     return newScheme;
+  }
+
+  function versionToScheme(version) {
+    if (!version) return null;
+    return {
+      id: "v_" + version.id,
+      name: (version.label || _formatTimeShort(version.timestamp)) + " (历史版本)",
+      cells: version.cells.slice(),
+      cols: version.cols,
+      rows: version.rows,
+      activeColor: null,
+      activeBlock: "dot",
+      undo: [],
+      redo: [],
+      versions: [],
+      _isVersionSnapshot: true,
+      _sourceVersionId: version.id
+    };
+  }
+
+  function _formatTimeShort(ts) {
+    var d = new Date(ts);
+    return String(d.getMonth() + 1).padStart(2, "0") + "/" +
+      String(d.getDate()).padStart(2, "0") + " " +
+      String(d.getHours()).padStart(2, "0") + ":" +
+      String(d.getMinutes()).padStart(2, "0");
+  }
+
+  function restoreAreaToCurrentScheme(schemeId, versionId, rect) {
+    var scheme = SchemeStore.getById(schemeId);
+    var version = getVersion(schemeId, versionId);
+    if (!scheme || !version) return false;
+    if (!rect || typeof rect.startX !== 'number') return false;
+
+    var startX = Math.max(0, rect.startX);
+    var startY = Math.max(0, rect.startY);
+    var endX = Math.min(scheme.cols - 1, rect.endX != null ? rect.endX : version.cols - 1);
+    var endY = Math.min(scheme.rows - 1, rect.endY != null ? rect.endY : version.rows - 1);
+
+    if (startX > endX || startY > endY) return false;
+
+    var threads = ThreadStore.getAll();
+    var threadIds = {};
+    threads.forEach(function(t) { threadIds[t.id] = true; });
+    var firstId = threads.length > 0 ? threads[0].id : null;
+
+    var oldCells = scheme.cells.slice();
+    var newCells = scheme.cells.slice();
+
+    for (var y = startY; y <= endY; y++) {
+      for (var x = startX; x <= endX; x++) {
+        if (x < version.cols && y < version.rows) {
+          var vIdx = y * version.cols + x;
+          var vCell = version.cells[vIdx];
+          if (typeof vCell === "string" && threadIds[vCell]) {
+            var sIdx = y * scheme.cols + x;
+            newCells[sIdx] = vCell;
+          } else if (firstId) {
+            var sIdx2 = y * scheme.cols + x;
+            newCells[sIdx2] = firstId;
+          }
+        }
+      }
+    }
+
+    var undoArr = (scheme.undo || []).slice();
+    undoArr.push(oldCells);
+    if (undoArr.length > 50) undoArr.shift();
+
+    SchemeStore.update(schemeId, {
+      cells: newCells,
+      undo: undoArr,
+      redo: []
+    });
+
+    EventBus.emit("version:areaRestored", schemeId, versionId, rect);
+    return true;
+  }
+
+  function restoreFullToCurrentScheme(schemeId, versionId) {
+    var scheme = SchemeStore.getById(schemeId);
+    var version = getVersion(schemeId, versionId);
+    if (!scheme || !version) return false;
+
+    var threads = ThreadStore.getAll();
+    var normalizedCells = _normalizeCells(version.cells, threads);
+
+    var targetCols = version.cols;
+    var targetRows = version.rows;
+    var finalCells;
+
+    if (scheme.cols === targetCols && scheme.rows === targetRows) {
+      finalCells = normalizedCells;
+    } else {
+      finalCells = Array(targetCols * targetRows).fill(threads.length > 0 ? threads[0].id : null);
+      var minCols = Math.min(scheme.cols, targetCols);
+      var minRows = Math.min(scheme.rows, targetRows);
+      for (var y = 0; y < minRows; y++) {
+        for (var x = 0; x < minCols; x++) {
+          var vIdx = y * targetCols + x;
+          if (vIdx < normalizedCells.length) {
+            finalCells[y * targetCols + x] = normalizedCells[vIdx];
+          }
+        }
+      }
+    }
+
+    var oldCells = scheme.cells.slice();
+    var undoArr = (scheme.undo || []).slice();
+    undoArr.push(oldCells);
+    if (undoArr.length > 50) undoArr.shift();
+
+    SchemeStore.update(schemeId, {
+      cols: targetCols,
+      rows: targetRows,
+      cells: finalCells,
+      undo: undoArr,
+      redo: []
+    });
+
+    EventBus.emit("version:fullRestoredToCurrent", schemeId, versionId);
+    return true;
   }
 
   function _normalizeCells(cells, threads) {
@@ -367,6 +490,9 @@ const VersionHistory = (function() {
     getVersions: getVersions,
     getVersion: getVersion,
     restoreAsNewScheme: restoreAsNewScheme,
+    restoreFullToCurrentScheme: restoreFullToCurrentScheme,
+    restoreAreaToCurrentScheme: restoreAreaToCurrentScheme,
+    versionToScheme: versionToScheme,
     deleteVersion: deleteVersion,
     updateLabel: updateLabel,
     getExportData: getExportData,

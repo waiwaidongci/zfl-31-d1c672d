@@ -138,7 +138,34 @@ const App = (function() {
 
     var versionTimelineEl = document.querySelector("#versionTimeline");
     if (versionTimelineEl && typeof VersionTimelineUI !== "undefined") {
-      VersionTimelineUI.init({ container: versionTimelineEl });
+      VersionTimelineUI.init({
+        container: versionTimelineEl,
+        onStartVersionCompare: function(verA, verB, sourceSchemeId) {
+          var schemeA = VersionHistory.versionToScheme(verA);
+          var schemeB = VersionHistory.versionToScheme(verB);
+          if (!schemeA || !schemeB) return;
+
+          _switchWorkspace("compare");
+
+          document.querySelector("#compareSelector").style.display = "none";
+          document.querySelector("#compareView").style.display = "";
+
+          if (typeof CompareView !== "undefined") {
+            CompareView.init({
+              container: document.querySelector("#compareView"),
+              onBack: function() {
+                document.querySelector("#compareView").style.display = "none";
+                document.querySelector("#compareView").innerHTML = "";
+                document.querySelector("#compareSelector").style.display = "";
+                if (typeof CompareSelector !== "undefined") {
+                  CompareSelector.refresh();
+                }
+              }
+            });
+            CompareView.showCompare(schemeA, schemeB, { sourceSchemeId: sourceSchemeId });
+          }
+        }
+      });
       VersionTimelineUI.refresh();
     }
 
@@ -176,11 +203,32 @@ const App = (function() {
 
   function _bindGlobalEvents() {
     EventBus.on("grid:changed", function() {
+      GridRender.render();
       SchemeUI.renderSchemeList();
+      if (typeof VersionTimelineUI !== "undefined") {
+        VersionTimelineUI.refresh();
+      }
     });
 
     EventBus.on("scheme:switchRequested", function(schemeId) {
       SchemeUI.switchScheme(schemeId);
+    });
+
+    EventBus.on("version:areaRestored", function() {
+      GridRender.render();
+      SchemeUI.renderSchemeList();
+    });
+
+    EventBus.on("version:fullRestoredToCurrent", function() {
+      var c = AppState.cols;
+      var r = AppState.rows;
+      if (_colsInput) _colsInput.value = c;
+      if (_rowsInput) _rowsInput.value = r;
+      if (typeof GridInteraction !== "undefined") {
+        GridInteraction.setGridSize(c, r);
+      }
+      GridRender.render();
+      SchemeUI.renderSchemeList();
     });
   }
 

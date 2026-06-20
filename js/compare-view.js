@@ -6,7 +6,16 @@ const CompareView = (function() {
   let _showDifferences = true;
   let _schemeAId = null;
   let _schemeBId = null;
+  let _schemeA = null;
+  let _schemeB = null;
+  let _schemeA_isVersion = false;
+  let _schemeB_isVersion = false;
+  let _sourceSchemeId = null;
   let _alignment = { mode: 'top-left', offsetX: 0, offsetY: 0 };
+  let _areaSelectionSlot = null;
+  let _areaSelection = null;
+  let _areaSelStart = null;
+  let _areaSelecting = false;
 
   function escapeHtml(str) {
     const div = document.createElement("div");
@@ -19,25 +28,51 @@ const CompareView = (function() {
     _onBack = options.onBack || null;
   }
 
-  function showCompare(schemeA, schemeB) {
+  function showCompare(schemeA, schemeB, options) {
     if (!_container) return;
 
-    _schemeAId = schemeA.id;
-    _schemeBId = schemeB.id;
+    options = options || {};
+    _sourceSchemeId = options.sourceSchemeId || null;
+
+    if (schemeA._isVersionSnapshot) {
+      _schemeA_isVersion = true;
+      _schemeAId = schemeA._sourceVersionId;
+      _schemeA = schemeA;
+    } else {
+      _schemeA_isVersion = false;
+      _schemeAId = schemeA.id;
+      _schemeA = schemeA;
+    }
+
+    if (schemeB._isVersionSnapshot) {
+      _schemeB_isVersion = true;
+      _schemeBId = schemeB._sourceVersionId;
+      _schemeB = schemeB;
+    } else {
+      _schemeB_isVersion = false;
+      _schemeBId = schemeB.id;
+      _schemeB = schemeB;
+    }
+
     _alignment = { mode: 'top-left', offsetX: 0, offsetY: 0 };
+    _areaSelection = null;
+    _areaSelectionSlot = null;
 
     _recalcAndRender();
   }
 
-  function _recalcAndRender() {
-    if (!_schemeAId || !_schemeBId) return;
+  function _getSchemeData(isVersion, id, fallback) {
+    if (isVersion) {
+      return fallback;
+    }
+    return SchemeStore.getById(id) || fallback;
+  }
 
-    const schemeA = SchemeStore.getById(_schemeAId);
-    const schemeB = SchemeStore.getById(_schemeBId);
-    if (!schemeA || !schemeB) return;
+  function _recalcAndRender() {
+    if (!_schemeA || !_schemeB) return;
 
     const threads = ThreadStore.getAll();
-    _compareResult = CompareCalc.compareAll(schemeA, schemeB, threads, _alignment);
+    _compareResult = CompareCalc.compareAll(_schemeA, _schemeB, threads, _alignment);
     render();
   }
 
@@ -68,6 +103,9 @@ const CompareView = (function() {
     const { mapA, mapB } = _buildDiffMap(diffResult);
     const diffMap = slot === 'A' ? mapA : mapB;
 
+    const isSelectingArea = _areaSelectionSlot === slot;
+    const sel = _areaSelectionSlot === slot ? _areaSelection : null;
+
     let cellHtml = '';
     for (let i = 0; i < scheme.cells.length; i++) {
       const cellId = scheme.cells[i];
@@ -75,13 +113,31 @@ const CompareView = (function() {
       const diffType = _showDifferences && diffResult.canCompare ? diffMap[i] : null;
       const diffClass = diffType ? ` cell-diff cell-diff-${diffType}` : '';
 
-      cellHtml += `<div class="cell compare-cell${diffClass}" data-i="${i}" style="background:${color}"></div>`;
+      const x = i % scheme.cols;
+      const y = Math.floor(i / scheme.cols);
+      let inSelection = false;
+      if (sel && x >= sel.startX && x <= sel.endX && y >= sel.startY && y <= sel.endY) {
+        inSelection = true;
+      }
+      const selClass = inSelection ? ' compare-cell-selected' : '';
+
+      cellHtml += `<div class="cell compare-cell${diffClass}${selClass}" data-slot="${slot}" data-i="${i}" data-x="${x}" data-y="${y}" style="background:${color}"></div>`;
     }
 
+    const slotLower = slot.toLowerCase();
+    const selectable = _sourceSchemeId ? ' compare-grid-selectable' : '';
+
     return `
-      <div class="grid compare-grid" style="grid-template-columns:repeat(${scheme.cols},1fr)">
+      <div class="grid compare-grid${selectable}" data-slot="${slot}" data-cols="${scheme.cols}" data-rows="${scheme.rows}" style="grid-template-columns:repeat(${scheme.cols},1fr)">
         ${cellHtml}
       </div>
+      ${_sourceSchemeId ? `
+        <div class="compare-grid-toolbar">
+          ${isSelectingArea ? `<span class="compare-area-hint">拖拽选择恢复区域${sel ? ' (' + (sel.endX - sel.startX + 1) + '×' + (sel.endY - sel.startY + 1) + ')' : ''}</span>` : ''}
+          <button class="secondary small compare-area-btn" data-slot="${slot}" data-action="toggle-select-area">${isSelectingArea ? '取消区域选择' : '选择区域恢复'}</button>
+          ${sel ? `<button class="vt-btn-restore small compare-area-btn" data-slot="${slot}" data-action="restore-area">恢复所选区域到当前方案</button>` : ''}
+        </div>
+      ` : ''}
     `;
   }
 
@@ -111,7 +167,7 @@ const CompareView = (function() {
 
     const alignment = cellDiff.alignment || _alignment;
     const isCustom = alignment.mode === 'custom';
-    const schemeA = SchemeStore.getById(_schemeAId);
+    const schemeA = _schemeA;
     const maxOffsetX = schemeA ? Math.max(schemeA.cols - 1, 20) : 20;
     const maxOffsetY = schemeA ? Math.max(schemeA.rows - 1, 20) : 20;
 
@@ -267,14 +323,40 @@ const CompareView = (function() {
     `;
   }
 
+  function renderRestoreActions() {
+    if (!_sourceSchemeId) return '';
+
+    const aLabel = _schemeA_isVersion ? '历史版本 A' : '方案 A';
+    const bLabel = _schemeB_isVersion ? '历史版本 B' : '方案 B';
+
+    return `
+      <div class="compare-section compare-restore-section">
+        <h4>恢复操作</h4>
+        <p class="compare-restore-hint">可将对比中的方案恢复。恢复到当前方案的操作均支持撤销。</p>
+        <div class="compare-restore-grid">
+          <div class="compare-restore-col slot-a">
+            <div class="compare-restore-col-title">${aLabel}</div>
+            <div class="compare-restore-btns">
+              <button class="secondary small" data-action="restore-new" data-slot="A">恢复为新方案</button>
+              <button class="vt-btn-restore small" data-action="restore-current" data-slot="A">整体恢复到当前</button>
+            </div>
+          </div>
+          <div class="compare-restore-col slot-b">
+            <div class="compare-restore-col-title">${bLabel}</div>
+            <div class="compare-restore-btns">
+              <button class="secondary small" data-action="restore-new" data-slot="B">恢复为新方案</button>
+              <button class="vt-btn-restore small" data-action="restore-current" data-slot="B">整体恢复到当前</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function render() {
-    if (!_container || !_compareResult) return;
+    if (!_container || !_compareResult || !_schemeA || !_schemeB) return;
 
-    const { schemeA, schemeB, dimensions, filledCells, colorUsage, riskRows, cellDiff } = _compareResult;
-    const fullSchemeA = SchemeStore._schemes[schemeA.id];
-    const fullSchemeB = SchemeStore._schemes[schemeB.id];
-
-    if (!fullSchemeA || !fullSchemeB) return;
+    const { dimensions, filledCells, colorUsage, riskRows, cellDiff } = _compareResult;
 
     const canToggleDiff = cellDiff.canCompare && cellDiff.diffCount > 0;
 
@@ -283,7 +365,7 @@ const CompareView = (function() {
         <div class="compare-header">
           <div class="compare-header-left">
             <button class="secondary" id="compareBackBtn">← 返回选择</button>
-            <h3>方案对比</h3>
+            <h3>${_sourceSchemeId ? '历史版本对比' : '方案对比'}</h3>
           </div>
           <div class="compare-header-right">
             ${renderDimensionBadge(dimensions)}
@@ -300,19 +382,21 @@ const CompareView = (function() {
           <div class="compare-panel slot-a">
             <div class="compare-panel-header">
               <span class="compare-slot-badge slot-a">方案 A</span>
-              <span class="compare-panel-title">${escapeHtml(schemeA.name)}</span>
+              <span class="compare-panel-title">${escapeHtml(_schemeA.name)}</span>
               <span class="compare-panel-size">${dimensions.a.cols}×${dimensions.a.rows}</span>
+              ${_schemeA_isVersion ? '<span class="compare-version-tag">历史版本</span>' : ''}
             </div>
-            ${renderGrid(fullSchemeA, 'A', cellDiff)}
+            ${renderGrid(_schemeA, 'A', cellDiff)}
           </div>
 
           <div class="compare-panel slot-b">
             <div class="compare-panel-header">
               <span class="compare-slot-badge slot-b">方案 B</span>
-              <span class="compare-panel-title">${escapeHtml(schemeB.name)}</span>
+              <span class="compare-panel-title">${escapeHtml(_schemeB.name)}</span>
               <span class="compare-panel-size">${dimensions.b.cols}×${dimensions.b.rows}</span>
+              ${_schemeB_isVersion ? '<span class="compare-version-tag">历史版本</span>' : ''}
             </div>
-            ${renderGrid(fullSchemeB, 'B', cellDiff)}
+            ${renderGrid(_schemeB, 'B', cellDiff)}
           </div>
         </div>
 
@@ -321,6 +405,7 @@ const CompareView = (function() {
           ${renderColorUsageSection(colorUsage)}
           ${renderRiskRowsSection(riskRows)}
           ${renderCellDiffSection(cellDiff)}
+          ${renderRestoreActions()}
         </div>
       </div>
     `;
@@ -374,10 +459,143 @@ const CompareView = (function() {
         }
       });
     }
+
+    const restoreNewBtns = _container.querySelectorAll('[data-action="restore-new"]');
+    restoreNewBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const slot = btn.dataset.slot;
+        _handleRestoreNew(slot);
+      });
+    });
+
+    const restoreCurrentBtns = _container.querySelectorAll('[data-action="restore-current"]');
+    restoreCurrentBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const slot = btn.dataset.slot;
+        _handleRestoreCurrent(slot);
+      });
+    });
+
+    const toggleSelAreaBtns = _container.querySelectorAll('[data-action="toggle-select-area"]');
+    toggleSelAreaBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const slot = btn.dataset.slot;
+        if (_areaSelectionSlot === slot) {
+          _areaSelectionSlot = null;
+          _areaSelection = null;
+        } else {
+          _areaSelectionSlot = slot;
+          _areaSelection = null;
+        }
+        render();
+      });
+    });
+
+    const restoreAreaBtns = _container.querySelectorAll('[data-action="restore-area"]');
+    restoreAreaBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const slot = btn.dataset.slot;
+        _handleRestoreArea(slot);
+      });
+    });
+
+    _bindAreaSelection();
+  }
+
+  function _bindAreaSelection() {
+    if (!_container) return;
+    const grids = _container.querySelectorAll('.compare-grid-selectable');
+    grids.forEach(grid => {
+      const slot = grid.dataset.slot;
+      const cols = parseInt(grid.dataset.cols, 10);
+      const rows = parseInt(grid.dataset.rows, 10);
+
+      grid.addEventListener('pointerdown', (e) => {
+        if (_areaSelectionSlot !== slot) return;
+        const cell = e.target.closest('.compare-cell');
+        if (!cell) return;
+        e.preventDefault();
+        _areaSelecting = true;
+        const x = parseInt(cell.dataset.x, 10);
+        const y = parseInt(cell.dataset.y, 10);
+        _areaSelStart = { x, y };
+        _areaSelection = { startX: x, startY: y, endX: x, endY: y, cols, rows };
+        render();
+      });
+
+      grid.addEventListener('pointermove', (e) => {
+        if (!_areaSelecting || _areaSelectionSlot !== slot) return;
+        const cell = e.target.closest('.compare-cell');
+        if (!cell) return;
+        e.preventDefault();
+        const x = parseInt(cell.dataset.x, 10);
+        const y = parseInt(cell.dataset.y, 10);
+        if (!_areaSelStart) return;
+        const startX = Math.min(_areaSelStart.x, x);
+        const startY = Math.min(_areaSelStart.y, y);
+        const endX = Math.max(_areaSelStart.x, x);
+        const endY = Math.max(_areaSelStart.y, y);
+        _areaSelection = { startX, startY, endX, endY, cols, rows };
+        render();
+      });
+    });
+
+    document.addEventListener('pointerup', _onAreaSelEnd);
+  }
+
+  function _onAreaSelEnd() {
+    _areaSelecting = false;
+    _areaSelStart = null;
+    document.removeEventListener('pointerup', _onAreaSelEnd);
+  }
+
+  function _handleRestoreNew(slot) {
+    if (!_sourceSchemeId) return;
+    const versionId = slot === 'A' ? _schemeAId : _schemeBId;
+    const isVersion = slot === 'A' ? _schemeA_isVersion : _schemeB_isVersion;
+    if (!isVersion || !versionId) return;
+
+    const newScheme = VersionHistory.restoreAsNewScheme(_sourceSchemeId, versionId);
+    if (newScheme) {
+      EventBus.emit("scheme:switchRequested", newScheme.id);
+    }
+  }
+
+  function _handleRestoreCurrent(slot) {
+    if (!_sourceSchemeId) return;
+    const versionId = slot === 'A' ? _schemeAId : _schemeBId;
+    const isVersion = slot === 'A' ? _schemeA_isVersion : _schemeB_isVersion;
+    if (!isVersion || !versionId) return;
+
+    if (!confirm("确定将当前方案整体恢复到此历史版本吗？此操作可撤销。")) return;
+    const ok = VersionHistory.restoreFullToCurrentScheme(_sourceSchemeId, versionId);
+    if (ok) {
+      EventBus.emit("grid:changed");
+    }
+  }
+
+  function _handleRestoreArea(slot) {
+    if (!_sourceSchemeId || !_areaSelection || _areaSelectionSlot !== slot) return;
+    const versionId = slot === 'A' ? _schemeAId : _schemeBId;
+    const isVersion = slot === 'A' ? _schemeA_isVersion : _schemeB_isVersion;
+    if (!isVersion || !versionId) return;
+
+    const rect = {
+      startX: _areaSelection.startX,
+      startY: _areaSelection.startY,
+      endX: _areaSelection.endX,
+      endY: _areaSelection.endY
+    };
+    const size = (rect.endX - rect.startX + 1) + "×" + (rect.endY - rect.startY + 1);
+    if (!confirm("确定将选中的 " + size + " 区域从此历史版本恢复到当前方案吗？此操作可撤销。")) return;
+    const ok = VersionHistory.restoreAreaToCurrentScheme(_sourceSchemeId, versionId, rect);
+    if (ok) {
+      EventBus.emit("grid:changed");
+    }
   }
 
   function refresh() {
-    if (_schemeAId && _schemeBId) {
+    if (_schemeA && _schemeB) {
       _recalcAndRender();
     } else {
       render();
