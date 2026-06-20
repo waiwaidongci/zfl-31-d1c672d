@@ -436,6 +436,7 @@ const ImportDialog = (function() {
       const res = conflictResolutions[idx];
       const currentRes = res ? res.resolution : "use_file";
       const currentMatchIdx = res && res.primaryMatchIndex != null ? res.primaryMatchIndex : 0;
+      const selectedMatch = matches[currentMatchIdx] || matches[0];
 
       const typeBadgeForType = (t) => {
         if (t === "id") return '<span style="background:#ffe0e0;color:#a03a2e;padding:2px 6px;border-radius:4px;font-size:11px;">ID冲突</span>';
@@ -450,7 +451,7 @@ const ImportDialog = (function() {
         const ct = match.thread;
         const matchTypeBadges = match.conflictTypes.map(typeBadgeForType).join(" ");
         const currColorBadge = `<span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:${ct.color || '#ccc'};vertical-align:middle;border:1px solid #d9cdbc;"></span>`;
-        const isSelected = currentRes === "keep_current" && currentMatchIdx === mIdx;
+        const isSelected = currentMatchIdx === mIdx;
         const highlightBorder = isSelected ? 'border-color:#3c5482;box-shadow:0 0 0 2px rgba(60,84,130,0.15);' : '';
 
         return `
@@ -478,7 +479,7 @@ const ImportDialog = (function() {
           <div style="display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:10px;">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:stretch;">
               <div style="background:#f5ebe0;padding:10px;border-radius:6px;">
-                <div style="font-size:11px;color:#76695e;margin-bottom:6px;font-weight:600;">� 文件色线</div>
+                <div style="font-size:11px;color:#76695e;margin-bottom:6px;font-weight:600;">文件色线</div>
                 <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:4px;">${fileColorBadge} ${escapeHtml(ft.name || "未命名")}</div>
                 <div style="font-size:11px;color:#a89988;font-family:monospace;">ID: ${escapeHtml(ft.id || "")}</div>
                 <div style="font-size:11px;color:#a89988;font-family:monospace;">色: ${escapeHtml(ft.color || "")}</div>
@@ -503,7 +504,7 @@ const ImportDialog = (function() {
               <input type="radio" name="conflict_${idx}" value="use_file" ${currentRes === 'use_file' ? 'checked' : ''} data-idx="${idx}" data-res="use_file" style="margin-top:2px;">
               <div style="flex:1;">
                 <div style="font-weight:600;font-size:13px;">使用文件色线</div>
-                <div style="font-size:11px;color:#76695e;margin-top:2px;">用文件色线属性覆盖 ${matches[0] ? `「${escapeHtml(matches[0].thread.name)}」` : '当前色线'} 的属性（名称/颜色），原有方案中该色线将同步变化</div>
+                <div style="font-size:11px;color:#76695e;margin-top:2px;">用文件色线属性覆盖 ${selectedMatch ? `「${escapeHtml(selectedMatch.thread.name)}」` : '当前色线'} 的属性（名称/颜色），原有方案中该色线将同步变化</div>
               </div>
             </label>
             <label style="display:flex;align-items:flex-start;gap:8px;padding:8px;background:${currentRes === 'new_mapping' ? '#e8f5e9' : '#fff'};border:2px solid ${currentRes === 'new_mapping' ? '#3a7d44' : '#d9cdbc'};border-radius:6px;cursor:pointer;">

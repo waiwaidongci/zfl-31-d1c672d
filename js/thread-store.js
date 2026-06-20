@@ -350,11 +350,12 @@ const ThreadStore = (function() {
         : 0;
       const selectedCurrent = matches[keepIdx].thread;
       const primaryCurrent = matches[0].thread;
+      const targetCurrent = selectedCurrent || primaryCurrent;
 
       if (res === "keep_current" && selectedCurrent) {
         idMap[ft.id] = selectedCurrent.id;
-      } else if (res === "use_file" && primaryCurrent) {
-        const idx = _threads.findIndex(t => t.id === primaryCurrent.id);
+      } else if (res === "use_file" && targetCurrent) {
+        const idx = _threads.findIndex(t => t.id === targetCurrent.id);
         if (idx !== -1) {
           _threads[idx] = {
             ..._threads[idx],
@@ -363,7 +364,7 @@ const ThreadStore = (function() {
             note: ft.note != null ? ft.note : _threads[idx].note
           };
         }
-        idMap[ft.id] = primaryCurrent.id;
+        idMap[ft.id] = targetCurrent.id;
       } else if (res === "new_mapping") {
         const newId = ThreadModel && typeof ThreadModel.createThread === "function"
           ? ThreadModel.createThread({ name: ft.name, color: ft.color }).id
