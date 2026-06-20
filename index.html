@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>手工织锦纹样排版台</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/batch-toolbar.css">
 </head>
 <body>
   <header>
@@ -43,6 +44,19 @@
       <h2>操作</h2>
       <div class="toolbar"><button id="undoBtn" class="secondary">撤销</button><button id="redoBtn" class="secondary">重做</button></div>
       <p>点击填色，按住拖动可连续填色。</p>
+      <h2>局部选择与批量编辑</h2>
+      <div class="batch-toolbar">
+        <button id="selectModeBtn" class="mode-btn paint-mode">切换到选择模式</button>
+      </div>
+      <div class="batch-actions">
+        <button id="fillSelBtn" class="secondary" disabled>填色</button>
+        <button id="clearSelBtn" class="secondary" disabled>清空</button>
+        <button id="flipHSelBtn" class="secondary" disabled>水平翻转</button>
+        <button id="flipVSelBtn" class="secondary" disabled>垂直翻转</button>
+        <button id="copySelBtn" class="secondary" disabled>复制</button>
+        <button id="pasteSelBtn" class="secondary" disabled>粘贴</button>
+      </div>
+      <div id="selectionInfo" class="selection-info" style="display:none;">已选 <span class="selection-size" id="selectionSize">0×0</span></div>
       <h2>用色统计</h2>
       <div class="stats" id="stats"></div>
       <h2>重复单元预览</h2>
@@ -54,6 +68,9 @@
   <script src="js/thread-model.js"></script>
   <script src="js/thread-store.js"></script>
   <script src="js/stats-render.js"></script>
+  <script src="js/selection-state.js"></script>
+  <script src="js/batch-transform.js"></script>
+  <script src="js/grid-interaction.js"></script>
   <script src="js/template-data.js"></script>
   <script src="js/template-apply.js"></script>
   <script src="js/template-ui.js"></script>

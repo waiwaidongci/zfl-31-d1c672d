@@ -331,6 +331,8 @@ function switchScheme(id) {
     if (typeof ProcessView !== "undefined" && ProcessView.isProcessView()) {
       ProcessView.switchToCanvas();
     }
+    SelectionState.reset();
+    GridInteraction.setGridSize(AppState.cols, AppState.rows);
     refreshAll();
   }
 }
@@ -357,6 +359,28 @@ function init(loadSaved = true) {
   SchemeStore.load();
   document.querySelector("#cols").value = AppState.cols;
   document.querySelector("#rows").value = AppState.rows;
+
+  GridInteraction.init({ gridEl: grid });
+  GridInteraction.setGridSize(AppState.cols, AppState.rows);
+  GridInteraction.bindDocumentEvents();
+
+  grid.addEventListener('pointerdown', (e) => {
+    if (SelectionState.getMode() === 'select') {
+      GridInteraction.handlePointerDown(e);
+    }
+  });
+
+  grid.addEventListener('click', (e) => {
+    if (SelectionState.getMode() === 'select') {
+      GridInteraction.handleGridClick(e);
+    }
+  });
+
+  SelectionState.subscribe(() => {
+    render();
+    updateBatchToolbarState();
+  });
+
   render();
   renderSchemeList();
 
@@ -387,8 +411,9 @@ function init(loadSaved = true) {
 function render() {
   const threads = ThreadStore.getAll();
   const activeThreadId = AppState.active;
+  const isSelectMode = SelectionState.getMode() === 'select';
 
-  StatsRender.renderAll({
+  const renderOptions = {
     statsEl: stats,
     previewEl: preview,
     riskEl: risk,
@@ -403,9 +428,15 @@ function render() {
       render();
       renderSchemeList();
     },
-    onCellDown: (i) => { AppState.dragging = true; paint(i); },
-    onCellEnter: (i) => { if (AppState.dragging) paint(i); }
-  });
+    isCellSelected: (i) => SelectionState.isCellSelected(i, AppState.cols)
+  };
+
+  if (!isSelectMode) {
+    renderOptions.onCellDown = (i) => { AppState.dragging = true; paint(i); };
+    renderOptions.onCellEnter = (i) => { if (AppState.dragging) paint(i); };
+  }
+
+  StatsRender.renderAll(renderOptions);
 
   window.onpointerup = () => AppState.dragging = false;
 
@@ -416,6 +447,8 @@ function render() {
   if (typeof ProcessView !== "undefined" && ProcessView.isProcessView()) {
     ProcessView.refresh();
   }
+
+  updateBatchToolbarState();
 }
 
 function snapshot() {
@@ -448,6 +481,118 @@ function idx(x,y) {
   return x < 0 || x >= AppState.cols || y < 0 || y >= AppState.rows ? null : y * AppState.cols + x;
 }
 
+function updateBatchToolbarState() {
+  const modeBtn = document.querySelector("#selectModeBtn");
+  const fillBtn = document.querySelector("#fillSelBtn");
+  const clearBtn = document.querySelector("#clearSelBtn");
+  const flipHBtn = document.querySelector("#flipHSelBtn");
+  const flipVBtn = document.querySelector("#flipVSelBtn");
+  const copyBtn = document.querySelector("#copySelBtn");
+  const pasteBtn = document.querySelector("#pasteSelBtn");
+  const infoEl = document.querySelector("#selectionInfo");
+  const sizeEl = document.querySelector("#selectionSize");
+
+  const isSelectMode = SelectionState.getMode() === 'select';
+  const hasSel = SelectionState.hasSelection();
+  const hasClip = SelectionState.hasClipboard();
+
+  if (modeBtn) {
+    modeBtn.textContent = isSelectMode ? "切换到绘画模式" : "切换到选择模式";
+    modeBtn.classList.toggle("select-mode", isSelectMode);
+    modeBtn.classList.toggle("paint-mode", !isSelectMode);
+  }
+
+  if (fillBtn) fillBtn.disabled = !hasSel;
+  if (clearBtn) clearBtn.disabled = !hasSel;
+  if (flipHBtn) flipHBtn.disabled = !hasSel;
+  if (flipVBtn) flipVBtn.disabled = !hasSel;
+  if (copyBtn) copyBtn.disabled = !hasSel;
+  if (pasteBtn) pasteBtn.disabled = !hasClip;
+
+  if (infoEl && sizeEl) {
+    if (hasSel) {
+      const size = SelectionState.getSelectionSize();
+      sizeEl.textContent = size.width + "×" + size.height;
+      infoEl.style.display = "block";
+    } else {
+      infoEl.style.display = "none";
+    }
+  }
+}
+
+function batchFillSelection() {
+  const selection = SelectionState.getSelection();
+  if (!selection) return;
+  snapshot();
+  const newCells = BatchTransform.fillSelection(
+    AppState.cells, AppState.cols, AppState.rows, selection, AppState.active
+  );
+  AppState.cells = newCells;
+  render();
+  renderSchemeList();
+}
+
+function batchClearSelection() {
+  const selection = SelectionState.getSelection();
+  if (!selection) return;
+  const firstThreadId = ThreadStore.getFirstId();
+  snapshot();
+  const newCells = BatchTransform.clearSelection(
+    AppState.cells, AppState.cols, AppState.rows, selection, firstThreadId
+  );
+  AppState.cells = newCells;
+  render();
+  renderSchemeList();
+}
+
+function batchFlipHorizontal() {
+  const selection = SelectionState.getSelection();
+  if (!selection) return;
+  snapshot();
+  const newCells = BatchTransform.flipHorizontal(
+    AppState.cells, AppState.cols, AppState.rows, selection
+  );
+  AppState.cells = newCells;
+  render();
+  renderSchemeList();
+}
+
+function batchFlipVertical() {
+  const selection = SelectionState.getSelection();
+  if (!selection) return;
+  snapshot();
+  const newCells = BatchTransform.flipVertical(
+    AppState.cells, AppState.cols, AppState.rows, selection
+  );
+  AppState.cells = newCells;
+  render();
+  renderSchemeList();
+}
+
+function batchCopySelection() {
+  SelectionState.copy(AppState.cells, AppState.cols);
+}
+
+function batchPasteSelection() {
+  const clipboard = SelectionState.getClipboard();
+  if (!clipboard) return;
+  const selection = SelectionState.getSelection();
+  const targetX = selection ? selection.startX : 0;
+  const targetY = selection ? selection.startY : 0;
+  snapshot();
+  const result = BatchTransform.pasteClipboard(
+    AppState.cells, AppState.cols, AppState.rows, targetX, targetY, clipboard
+  );
+  AppState.cells = result.cells;
+  SelectionState.setSelection(
+    targetX, targetY,
+    targetX + result.pasteW - 1, targetY + result.pasteH - 1,
+    AppState.cols, AppState.rows
+  );
+  render();
+  renderSchemeList();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-block]").forEach(btn =>
     btn.onclick = () => { AppState.block = btn.dataset.block; render(); }
@@ -463,6 +608,8 @@ document.addEventListener("DOMContentLoaded", () => {
       undo: [],
       redo: []
     });
+    SelectionState.reset();
+    GridInteraction.setGridSize(c, r);
     render();
     renderSchemeList();
   };
@@ -557,9 +704,39 @@ document.addEventListener("DOMContentLoaded", () => {
     SchemeStore.setActive(newScheme.id);
     document.querySelector("#cols").value = c;
     document.querySelector("#rows").value = r;
+    SelectionState.reset();
+    GridInteraction.setGridSize(c, r);
     refreshAll();
     const item = schemeListEl.querySelector(`[data-id="${newScheme.id}"]`);
     if (item) startRename(newScheme.id, item);
+  };
+
+  document.querySelector("#selectModeBtn").onclick = () => {
+    SelectionState.toggleMode();
+  };
+
+  document.querySelector("#fillSelBtn").onclick = () => {
+    batchFillSelection();
+  };
+
+  document.querySelector("#clearSelBtn").onclick = () => {
+    batchClearSelection();
+  };
+
+  document.querySelector("#flipHSelBtn").onclick = () => {
+    batchFlipHorizontal();
+  };
+
+  document.querySelector("#flipVSelBtn").onclick = () => {
+    batchFlipVertical();
+  };
+
+  document.querySelector("#copySelBtn").onclick = () => {
+    batchCopySelection();
+  };
+
+  document.querySelector("#pasteSelBtn").onclick = () => {
+    batchPasteSelection();
   };
 
   init();

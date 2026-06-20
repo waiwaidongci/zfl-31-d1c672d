@@ -38,19 +38,23 @@ const StatsRender = (function() {
     });
   }
 
-  function renderGrid(gridEl, cells, cols, threads, onCellDown, onCellEnter) {
+  function renderGrid(gridEl, cells, cols, threads, onCellDown, onCellEnter, isCellSelected) {
     const sorted = ThreadModel.sortByOrder(threads);
     const firstColor = sorted.length > 0 ? sorted[0].color : "#cccccc";
 
     gridEl.style.gridTemplateColumns = "repeat(" + cols + ", 1fr)";
     gridEl.innerHTML = cells.map((v, i) => {
       const color = ThreadModel.getColorById(sorted, v) || firstColor;
-      return '<div class="cell" data-i="'+i+'" style="background:'+color+'"></div>';
+      const selectedClass = (typeof isCellSelected === 'function' && isCellSelected(i)) ? ' selected' : '';
+      return '<div class="cell'+selectedClass+'" data-i="'+i+'" style="background:'+color+'"></div>';
     }).join("");
 
     gridEl.querySelectorAll(".cell").forEach(el => {
       if (typeof onCellDown === "function") {
-        el.onpointerdown = () => onCellDown(Number(el.dataset.i));
+        el.onpointerdown = (e) => {
+          e.stopPropagation();
+          onCellDown(Number(el.dataset.i));
+        };
       }
       if (typeof onCellEnter === "function") {
         el.onpointerenter = () => onCellEnter(Number(el.dataset.i));
@@ -90,7 +94,8 @@ const StatsRender = (function() {
       threads,
       onThreadSelect,
       onCellDown,
-      onCellEnter
+      onCellEnter,
+      isCellSelected
     } = options;
 
     if (paletteEl && threads) {
@@ -98,7 +103,7 @@ const StatsRender = (function() {
     }
 
     if (gridEl && cells && cols && threads) {
-      renderGrid(gridEl, cells, cols, threads, onCellDown, onCellEnter);
+      renderGrid(gridEl, cells, cols, threads, onCellDown, onCellEnter, isCellSelected);
     }
 
     if (statsEl && cells && threads) {
