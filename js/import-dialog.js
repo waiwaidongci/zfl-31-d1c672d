@@ -123,9 +123,10 @@ const ImportDialog = (function() {
       });
 
       if (validationResult.threadConflicts && validationResult.threadConflicts.length > 0) {
-        conflictResolutions = validationResult.threadConflicts.map(c => ({
+        conflictResolutions = validationResult.threadConflicts.map((c, idx) => ({
           fileThreadId: c.fileThread.id,
           resolution: "use_file",
+          primaryMatchIndex: c.primaryMatchIndex != null ? c.primaryMatchIndex : 0,
           customNewId: null
         }));
       } else {
@@ -431,61 +432,85 @@ const ImportDialog = (function() {
   function renderThreadConflicts(conflicts, threadList) {
     const items = conflicts.map((conflict, idx) => {
       const ft = conflict.fileThread;
-      const ct = conflict.currentThread;
-      const types = conflict.types;
+      const matches = conflict.currentThreadMatches || [];
       const res = conflictResolutions[idx];
       const currentRes = res ? res.resolution : "use_file";
+      const currentMatchIdx = res && res.primaryMatchIndex != null ? res.primaryMatchIndex : 0;
 
-      const typeBadges = types.map(t => {
+      const typeBadgeForType = (t) => {
         if (t === "id") return '<span style="background:#ffe0e0;color:#a03a2e;padding:2px 6px;border-radius:4px;font-size:11px;">ID冲突</span>';
         if (t === "name") return '<span style="background:#fff3cd;color:#8a6d2b;padding:2px 6px;border-radius:4px;font-size:11px;">名称冲突</span>';
         if (t === "color") return '<span style="background:#e0e7ff;color:#3c5482;padding:2px 6px;border-radius:4px;font-size:11px;">颜色冲突</span>';
         return "";
-      }).join(" ");
+      };
 
       const fileColorBadge = `<span style="display:inline-block;width:18px;height:18px;border-radius:3px;background:${ft.color || '#ccc'};vertical-align:middle;border:1px solid #d9cdbc;"></span>`;
-      const currColorBadge = ct
-        ? `<span style="display:inline-block;width:18px;height:18px;border-radius:3px;background:${ct.color || '#ccc'};vertical-align:middle;border:1px solid #d9cdbc;"></span>`
-        : "";
+
+      const matchCardsHtml = matches.map((match, mIdx) => {
+        const ct = match.thread;
+        const matchTypeBadges = match.conflictTypes.map(typeBadgeForType).join(" ");
+        const currColorBadge = `<span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:${ct.color || '#ccc'};vertical-align:middle;border:1px solid #d9cdbc;"></span>`;
+        const isSelected = currentRes === "keep_current" && currentMatchIdx === mIdx;
+        const highlightBorder = isSelected ? 'border-color:#3c5482;box-shadow:0 0 0 2px rgba(60,84,130,0.15);' : '';
+
+        return `
+          <div style="position:relative;background:#eef2fb;padding:8px 8px 8px 32px;border-radius:6px;border:2px solid ${isSelected ? '#3c5482' : '#c6d4ee'};margin-bottom:6px;${highlightBorder}">
+            <div style="position:absolute;left:8px;top:50%;transform:translateY(-50%);">
+              <input type="radio" name="keep_${idx}" value="${mIdx}" ${isSelected ? 'checked' : ''} data-idx="${idx}" data-match-idx="${mIdx}" data-action="select_keep" style="cursor:pointer;">
+            </div>
+            <div style="font-size:10px;color:#76695e;margin-bottom:2px;">${matchTypeBadges}</div>
+            <div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;">${currColorBadge} ${escapeHtml(ct.name || "未命名")}</div>
+            <div style="font-size:10px;color:#a89988;margin-top:1px;font-family:monospace;">ID: ${escapeHtml(ct.id || "")}</div>
+            <div style="font-size:10px;color:#a89988;font-family:monospace;">色: ${escapeHtml(ct.color || "")}</div>
+          </div>
+        `;
+      }).join("");
+
+      const allTypeBadges = Array.from(new Set(matches.flatMap(m => m.conflictTypes))).map(typeBadgeForType).join(" ");
 
       return `
         <div style="border:1px solid #f0c4be;border-radius:8px;padding:12px;margin-bottom:10px;background:#fffaf2;">
-          <div style="margin-bottom:8px;">${typeBadges}</div>
-          <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin-bottom:10px;">
-            <div style="background:#f5ebe0;padding:8px;border-radius:6px;">
-              <div style="font-size:11px;color:#76695e;margin-bottom:4px;">📄 文件色线</div>
-              <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;">${fileColorBadge} ${escapeHtml(ft.name || "未命名")}</div>
-              <div style="font-size:11px;color:#a89988;margin-top:2px;font-family:monospace;">${escapeHtml(ft.id || "")}</div>
-              <div style="font-size:11px;color:#a89988;font-family:monospace;">${escapeHtml(ft.color || "")}</div>
-            </div>
-            <div style="font-size:18px;color:#a03a2e;">⇄</div>
-            <div style="background:#eef2fb;padding:8px;border-radius:6px;">
-              <div style="font-size:11px;color:#76695e;margin-bottom:4px;">💾 当前色线</div>
-              <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;">${currColorBadge} ${escapeHtml(ct ? (ct.name || "未命名") : "-")}</div>
-              <div style="font-size:11px;color:#a89988;margin-top:2px;font-family:monospace;">${escapeHtml(ct ? (ct.id || "") : "-")}</div>
-              <div style="font-size:11px;color:#a89988;font-family:monospace;">${escapeHtml(ct ? (ct.color || "") : "-")}</div>
+          <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            ${allTypeBadges}
+            <span style="font-size:11px;color:#a03a2e;font-weight:600;">命中 ${matches.length} 条当前色线</span>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:10px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:stretch;">
+              <div style="background:#f5ebe0;padding:10px;border-radius:6px;">
+                <div style="font-size:11px;color:#76695e;margin-bottom:6px;font-weight:600;">� 文件色线</div>
+                <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:4px;">${fileColorBadge} ${escapeHtml(ft.name || "未命名")}</div>
+                <div style="font-size:11px;color:#a89988;font-family:monospace;">ID: ${escapeHtml(ft.id || "")}</div>
+                <div style="font-size:11px;color:#a89988;font-family:monospace;">色: ${escapeHtml(ft.color || "")}</div>
+                ${ft.note ? `<div style="font-size:10px;color:#a89988;margin-top:2px;">备: ${escapeHtml(ft.note)}</div>` : ''}
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px;">
+                <div style="font-size:11px;color:#76695e;font-weight:600;">💾 命中的当前色线（单选选择保留目标）</div>
+                ${matchCardsHtml}
+              </div>
             </div>
           </div>
+
           <div style="display:flex;flex-direction:column;gap:6px;">
-            <label style="display:flex;align-items:center;gap:8px;padding:8px;background:${currentRes === 'keep_current' ? '#eef2fb' : '#fff'};border:2px solid ${currentRes === 'keep_current' ? '#3c5482' : '#d9cdbc'};border-radius:6px;cursor:pointer;">
-              <input type="radio" name="conflict_${idx}" value="keep_current" ${currentRes === 'keep_current' ? 'checked' : ''} data-idx="${idx}" data-res="keep_current">
+            <label style="display:flex;align-items:flex-start;gap:8px;padding:8px;background:${currentRes === 'keep_current' ? '#eef2fb' : '#fff'};border:2px solid ${currentRes === 'keep_current' ? '#3c5482' : '#d9cdbc'};border-radius:6px;cursor:pointer;">
+              <input type="radio" name="conflict_${idx}" value="keep_current" ${currentRes === 'keep_current' ? 'checked' : ''} data-idx="${idx}" data-res="keep_current" style="margin-top:2px;">
               <div style="flex:1;">
                 <div style="font-weight:600;font-size:13px;">保留当前色线</div>
-                <div style="font-size:11px;color:#76695e;">保持当前色线库不变，文件中该色线对应格子将替换为当前色线</div>
+                <div style="font-size:11px;color:#76695e;margin-top:2px;">保持当前色线库不变，文件中该色线对应格子将替换为右上方选中的当前色线</div>
               </div>
             </label>
-            <label style="display:flex;align-items:center;gap:8px;padding:8px;background:${currentRes === 'use_file' ? '#fdf0ee' : '#fff'};border:2px solid ${currentRes === 'use_file' ? '#a03a2e' : '#d9cdbc'};border-radius:6px;cursor:pointer;">
-              <input type="radio" name="conflict_${idx}" value="use_file" ${currentRes === 'use_file' ? 'checked' : ''} data-idx="${idx}" data-res="use_file">
+            <label style="display:flex;align-items:flex-start;gap:8px;padding:8px;background:${currentRes === 'use_file' ? '#fdf0ee' : '#fff'};border:2px solid ${currentRes === 'use_file' ? '#a03a2e' : '#d9cdbc'};border-radius:6px;cursor:pointer;">
+              <input type="radio" name="conflict_${idx}" value="use_file" ${currentRes === 'use_file' ? 'checked' : ''} data-idx="${idx}" data-res="use_file" style="margin-top:2px;">
               <div style="flex:1;">
                 <div style="font-weight:600;font-size:13px;">使用文件色线</div>
-                <div style="font-size:11px;color:#76695e;">用文件色线覆盖当前色线的属性（名称/颜色），原有方案中该色线将同步变化</div>
+                <div style="font-size:11px;color:#76695e;margin-top:2px;">用文件色线属性覆盖 ${matches[0] ? `「${escapeHtml(matches[0].thread.name)}」` : '当前色线'} 的属性（名称/颜色），原有方案中该色线将同步变化</div>
               </div>
             </label>
-            <label style="display:flex;align-items:center;gap:8px;padding:8px;background:${currentRes === 'new_mapping' ? '#e8f5e9' : '#fff'};border:2px solid ${currentRes === 'new_mapping' ? '#3a7d44' : '#d9cdbc'};border-radius:6px;cursor:pointer;">
-              <input type="radio" name="conflict_${idx}" value="new_mapping" ${currentRes === 'new_mapping' ? 'checked' : ''} data-idx="${idx}" data-res="new_mapping">
+            <label style="display:flex;align-items:flex-start;gap:8px;padding:8px;background:${currentRes === 'new_mapping' ? '#e8f5e9' : '#fff'};border:2px solid ${currentRes === 'new_mapping' ? '#3a7d44' : '#d9cdbc'};border-radius:6px;cursor:pointer;">
+              <input type="radio" name="conflict_${idx}" value="new_mapping" ${currentRes === 'new_mapping' ? 'checked' : ''} data-idx="${idx}" data-res="new_mapping" style="margin-top:2px;">
               <div style="flex:1;">
                 <div style="font-weight:600;font-size:13px;">建立新色线</div>
-                <div style="font-size:11px;color:#76695e;">将文件色线作为新色线添加到色线库，保留当前色线不变</div>
+                <div style="font-size:11px;color:#76695e;margin-top:2px;">将文件色线作为新色线添加到色线库，保留所有当前色线不变</div>
               </div>
             </label>
           </div>
@@ -506,13 +531,26 @@ const ImportDialog = (function() {
   }
 
   function bindConflictResolutionEvents() {
-    const radios = dialogEl.querySelectorAll('input[name^="conflict_"]');
-    radios.forEach(radio => {
+    const conflictRadios = dialogEl.querySelectorAll('input[name^="conflict_"]');
+    conflictRadios.forEach(radio => {
       radio.addEventListener("change", (e) => {
         const idx = Number(e.target.dataset.idx);
         const res = e.target.dataset.res;
         if (conflictResolutions && conflictResolutions[idx]) {
           conflictResolutions[idx].resolution = res;
+        }
+        renderPreview();
+      });
+    });
+
+    const keepRadios = dialogEl.querySelectorAll('input[name^="keep_"]');
+    keepRadios.forEach(radio => {
+      radio.addEventListener("change", (e) => {
+        const idx = Number(e.target.dataset.idx);
+        const matchIdx = Number(e.target.dataset.matchIdx);
+        if (conflictResolutions && conflictResolutions[idx]) {
+          conflictResolutions[idx].primaryMatchIndex = matchIdx;
+          conflictResolutions[idx].resolution = "keep_current";
         }
         renderPreview();
       });

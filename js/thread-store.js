@@ -337,12 +337,24 @@ const ThreadStore = (function() {
       }
 
       const res = resolution.resolution || "use_file";
-      const currentThread = conflict.currentThread;
+      const matches = conflict.currentThreadMatches || [];
 
-      if (res === "keep_current" && currentThread) {
-        idMap[ft.id] = currentThread.id;
-      } else if (res === "use_file" && currentThread) {
-        const idx = _threads.findIndex(t => t.id === currentThread.id);
+      if (!matches || matches.length === 0) {
+        nonConflictFileThreads.push(ft);
+        idMap[ft.id] = ft.id;
+        return;
+      }
+
+      const keepIdx = resolution.primaryMatchIndex != null && resolution.primaryMatchIndex >= 0 && resolution.primaryMatchIndex < matches.length
+        ? resolution.primaryMatchIndex
+        : 0;
+      const selectedCurrent = matches[keepIdx].thread;
+      const primaryCurrent = matches[0].thread;
+
+      if (res === "keep_current" && selectedCurrent) {
+        idMap[ft.id] = selectedCurrent.id;
+      } else if (res === "use_file" && primaryCurrent) {
+        const idx = _threads.findIndex(t => t.id === primaryCurrent.id);
         if (idx !== -1) {
           _threads[idx] = {
             ..._threads[idx],
@@ -351,7 +363,7 @@ const ThreadStore = (function() {
             note: ft.note != null ? ft.note : _threads[idx].note
           };
         }
-        idMap[ft.id] = currentThread.id;
+        idMap[ft.id] = primaryCurrent.id;
       } else if (res === "new_mapping") {
         const newId = ThreadModel && typeof ThreadModel.createThread === "function"
           ? ThreadModel.createThread({ name: ft.name, color: ft.color }).id
@@ -371,8 +383,8 @@ const ThreadStore = (function() {
         });
 
         idMap[ft.id] = newId;
-      } else if (currentThread) {
-        idMap[ft.id] = currentThread.id;
+      } else if (primaryCurrent) {
+        idMap[ft.id] = primaryCurrent.id;
       } else {
         nonConflictFileThreads.push(ft);
         idMap[ft.id] = ft.id;

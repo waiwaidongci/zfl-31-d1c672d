@@ -314,18 +314,21 @@ const ImportValidator = (function() {
     currentThreads.forEach(t => {
       currentById[t.id] = t;
       const nKey = (t.name || "").toLowerCase().trim();
-      if (nKey) currentByName[nKey] = t;
+      if (nKey) {
+        if (!currentByName[nKey]) currentByName[nKey] = [];
+        currentByName[nKey].push(t);
+      }
       const cKey = normalizeColor(t.color);
-      if (cKey) currentByColor[cKey] = t;
+      if (cKey) {
+        if (!currentByColor[cKey]) currentByColor[cKey] = [];
+        currentByColor[cKey].push(t);
+      }
     });
 
     fileThreads.forEach(ft => {
-      const conflict = {
-        fileThread: { ...ft },
-        types: [],
-        currentThread: null,
-        suggestion: null
-      };
+      const matchesById = [];
+      const matchesByName = [];
+      const matchesByColor = [];
 
       const byId = currentById[ft.id];
       if (byId) {
@@ -333,43 +336,60 @@ const ImportValidator = (function() {
         const nameDiff = (byId.name || "").toLowerCase().trim() !== (ft.name || "").toLowerCase().trim();
         const colorDiff = normalizeColor(byId.color) !== normalizeColor(ft.color);
         if (idMatch && (nameDiff || colorDiff)) {
-          conflict.types.push("id");
-          conflict.currentThread = conflict.currentThread || { ...byId };
+          matchesById.push({
+            thread: { ...byId },
+            conflictTypes: ["id"]
+          });
         } else if (idMatch && !nameDiff && !colorDiff) {
           return;
         }
       }
 
       const nKey = (ft.name || "").toLowerCase().trim();
-      const byName = nKey ? currentByName[nKey] : null;
-      if (byName && byName.id !== ft.id && (!conflict.currentThread || conflict.currentThread.id !== byName.id)) {
-        conflict.types.push("name");
-        conflict.currentThread = conflict.currentThread || { ...byName };
-      } else if (byName && byName.id !== ft.id && conflict.currentThread && conflict.currentThread.id !== byName.id) {
-        conflict.types.push("name");
+      const byNameList = nKey ? currentByName[nKey] : null;
+      if (byNameList && byNameList.length > 0) {
+        byNameList.forEach(ct => {
+          if (ct.id === ft.id) return;
+          if (matchesById.some(m => m.thread.id === ct.id)) return;
+          matchesByName.push({
+            thread: { ...ct },
+            conflictTypes: ["name"]
+          });
+        });
       }
 
       const cKey = normalizeColor(ft.color);
-      const byColor = cKey ? currentByColor[cKey] : null;
-      if (byColor && byColor.id !== ft.id) {
-        if (!conflict.currentThread) {
-          conflict.currentThread = { ...byColor };
-          conflict.types.push("color");
-        } else if (conflict.currentThread.id !== byColor.id) {
-          if (!conflict.altCurrentThreads) conflict.altCurrentThreads = [];
-          conflict.altCurrentThreads.push({ ...byColor, conflictType: "color" });
-        }
+      const byColorList = cKey ? currentByColor[cKey] : null;
+      if (byColorList && byColorList.length > 0) {
+        byColorList.forEach(ct => {
+          if (ct.id === ft.id) return;
+          if (matchesById.some(m => m.thread.id === ct.id)) return;
+          if (matchesByName.some(m => m.thread.id === ct.id)) return;
+          matchesByColor.push({
+            thread: { ...ct },
+            conflictTypes: ["color"]
+          });
+        });
       }
 
-      if (conflict.types.length > 0) {
-        const typeLabels = conflict.types.map(t => {
-          if (t === "id") return "ID相同";
-          if (t === "name") return "名称相同";
-          if (t === "color") return "颜色相同";
-          return t;
-        }).join("、");
-        conflict.description = typeLabels + "，但属性不完全一致";
-        conflicts.push(conflict);
+      const allMatches = [...matchesById, ...matchesByName, ...matchesByColor];
+
+      if (allMatches.length > 0) {
+        const allTypes = new Set();
+        allMatches.forEach(m => m.conflictTypes.forEach(t => allTypes.add(t)));
+
+        conflicts.push({
+          fileThread: { ...ft },
+          currentThreadMatches: allMatches,
+          primaryMatchIndex: 0,
+          types: Array.from(allTypes),
+          description: `命中 ${allMatches.length} 条当前色线（${Array.from(allTypes).map(t => {
+            if (t === "id") return "ID";
+            if (t === "name") return "名称";
+            if (t === "color") return "颜色";
+            return t;
+          }).join("、")}冲突），属性不完全一致`
+        });
       }
     });
 
