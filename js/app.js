@@ -738,6 +738,8 @@ document.addEventListener("DOMContentLoaded", () => {
     batchPasteSelection();
   };
 
+  init();
+
   let currentWorkspace = 'edit';
 
   function switchWorkspace(workspace) {
@@ -798,6 +800,4 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
-
-  init();
 });
