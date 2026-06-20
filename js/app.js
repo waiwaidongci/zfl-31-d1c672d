@@ -496,6 +496,19 @@ document.addEventListener("DOMContentLoaded", () => {
     URL.revokeObjectURL(a.href);
   };
 
+  if (typeof ImportDialog !== "undefined") {
+    ImportDialog.init({ colors });
+    document.querySelector("#importBtn").onclick = () => {
+      ImportDialog.open({
+        onImport: (result) => {
+          document.querySelector("#cols").value = AppState.cols;
+          document.querySelector("#rows").value = AppState.rows;
+          refreshAll();
+        }
+      });
+    };
+  }
+
   document.querySelector("#newSchemeBtn").onclick = () => {
     const c = Number(document.querySelector("#cols").value) || 18;
     const r = Number(document.querySelector("#rows").value) || 14;
