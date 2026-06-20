@@ -38,15 +38,32 @@ const StatsRender = (function() {
     });
   }
 
-  function renderGrid(gridEl, cells, cols, threads, onCellDown, onCellEnter, isCellSelected) {
+  function renderGrid(gridEl, cells, cols, threads, onCellDown, onCellEnter, isCellSelected, templatePreview) {
     const sorted = ThreadModel.sortByOrder(threads);
     const firstColor = sorted.length > 0 ? sorted[0].color : "#cccccc";
+
+    const previewMap = {};
+    if (Array.isArray(templatePreview)) {
+      templatePreview.forEach(p => {
+        previewMap[p.index] = p;
+      });
+    }
 
     gridEl.style.gridTemplateColumns = "repeat(" + cols + ", 1fr)";
     gridEl.innerHTML = cells.map((v, i) => {
       const color = ThreadModel.getColorById(sorted, v) || firstColor;
       const selectedClass = (typeof isCellSelected === 'function' && isCellSelected(i)) ? ' selected' : '';
-      return '<div class="cell'+selectedClass+'" data-i="'+i+'" style="background:'+color+'"></div>';
+
+      let previewClass = '';
+      let previewStyle = '';
+      const preview = previewMap[i];
+      if (preview) {
+        const previewColor = ThreadModel.getColorById(sorted, preview.threadId) || firstColor;
+        previewClass = preview.isOverwrite ? ' tpl-preview tpl-preview-overwrite' : ' tpl-preview tpl-preview-skip';
+        previewStyle = ' --tpl-preview-color:' + previewColor + ';';
+      }
+
+      return '<div class="cell'+selectedClass+previewClass+'" data-i="'+i+'" style="background:'+color+';'+previewStyle+'"></div>';
     }).join("");
 
     gridEl.querySelectorAll(".cell").forEach(el => {
@@ -95,7 +112,8 @@ const StatsRender = (function() {
       onThreadSelect,
       onCellDown,
       onCellEnter,
-      isCellSelected
+      isCellSelected,
+      templatePreview
     } = options;
 
     if (paletteEl && threads) {
@@ -103,7 +121,7 @@ const StatsRender = (function() {
     }
 
     if (gridEl && cells && cols && threads) {
-      renderGrid(gridEl, cells, cols, threads, onCellDown, onCellEnter, isCellSelected);
+      renderGrid(gridEl, cells, cols, threads, onCellDown, onCellEnter, isCellSelected, templatePreview);
     }
 
     if (statsEl && cells && threads) {

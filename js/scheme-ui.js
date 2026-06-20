@@ -252,8 +252,13 @@ const SchemeUI = (function() {
 
   function switchScheme(id) {
     if (SchemeStore.setActive(id)) {
+      AppState.templatePreview = null;
+      if (typeof TemplateUI !== 'undefined' && typeof TemplateUI.clearPreviewState === 'function') {
+        TemplateUI.clearPreviewState();
+      }
       _syncActiveSchemeView();
       renderAll();
+      GridRender.render();
     }
   }
 

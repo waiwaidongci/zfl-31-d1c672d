@@ -34,7 +34,8 @@ const GridRender = (function() {
       },
       isCellSelected: function(i) {
         return SelectionState.isCellSelected(i, AppState.cols);
-      }
+      },
+      templatePreview: AppState.templatePreview
     };
 
     if (!isSelectMode) {
@@ -68,6 +69,13 @@ const GridRender = (function() {
   function paint(i) {
     if (!_canApplyBlock(i, AppState.block)) return;
     snapshot();
+    AppState.templatePreview = null;
+    if (typeof TemplateUI !== 'undefined' && typeof TemplateUI.clearPreviewState === 'function') {
+      TemplateUI.clearPreviewState();
+      if (typeof TemplateUI.render === 'function') {
+        TemplateUI.render();
+      }
+    }
     var targets = _pattern(i);
     var newCells = AppState.cells.slice();
     targets.forEach(function(t) {
@@ -119,10 +127,21 @@ const GridRender = (function() {
     return x < 0 || x >= AppState.cols || y < 0 || y >= AppState.rows ? null : y * AppState.cols + x;
   }
 
+  function _clearTemplatePreview() {
+    AppState.templatePreview = null;
+    if (typeof TemplateUI !== 'undefined' && typeof TemplateUI.clearPreviewState === 'function') {
+      TemplateUI.clearPreviewState();
+      if (typeof TemplateUI.render === 'function') {
+        TemplateUI.render();
+      }
+    }
+  }
+
   function batchFillSelection() {
     var selection = SelectionState.getSelection();
     if (!selection) return;
     snapshot();
+    _clearTemplatePreview();
     var newCells = BatchTransform.fillSelection(
       AppState.cells, AppState.cols, AppState.rows, selection, AppState.active
     );
@@ -136,6 +155,7 @@ const GridRender = (function() {
     if (!selection) return;
     var firstThreadId = ThreadStore.getFirstId();
     snapshot();
+    _clearTemplatePreview();
     var newCells = BatchTransform.clearSelection(
       AppState.cells, AppState.cols, AppState.rows, selection, firstThreadId
     );
@@ -148,6 +168,7 @@ const GridRender = (function() {
     var selection = SelectionState.getSelection();
     if (!selection) return;
     snapshot();
+    _clearTemplatePreview();
     var newCells = BatchTransform.flipHorizontal(
       AppState.cells, AppState.cols, AppState.rows, selection
     );
@@ -160,6 +181,7 @@ const GridRender = (function() {
     var selection = SelectionState.getSelection();
     if (!selection) return;
     snapshot();
+    _clearTemplatePreview();
     var newCells = BatchTransform.flipVertical(
       AppState.cells, AppState.cols, AppState.rows, selection
     );
@@ -179,6 +201,7 @@ const GridRender = (function() {
     var targetX = selection ? selection.startX : 0;
     var targetY = selection ? selection.startY : 0;
     snapshot();
+    _clearTemplatePreview();
     var result = BatchTransform.pasteClipboard(
       AppState.cells, AppState.cols, AppState.rows, targetX, targetY, clipboard
     );

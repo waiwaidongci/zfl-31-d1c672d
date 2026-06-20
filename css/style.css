@@ -15,7 +15,29 @@ label { display: block; margin: 9px 0 5px; color: #76695e; font-size: 13px; }
 .app { display: grid; grid-template-columns: 280px 1fr 320px; gap: 16px; padding: 16px; }
 .panel { background: #fffaf2; border: 1px solid #d9cdbc; border-radius: 8px; padding: 14px; }
 .grid { display: grid; gap: 2px; margin: 0 auto; width: min(100%, 720px); border: 6px solid #72533c; background: #72533c; }
-.cell { aspect-ratio: 1; background: #f8ead2; cursor: pointer; border-radius: 2px; }
+.cell { aspect-ratio: 1; background: #f8ead2; cursor: pointer; border-radius: 2px; position: relative; overflow: hidden; }
+
+.cell.tpl-preview::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: var(--tpl-preview-color, rgba(141, 62, 55, 0.5));
+  opacity: 0.5;
+  pointer-events: none;
+  border-radius: 2px;
+}
+
+.cell.tpl-preview-overwrite::after {
+  box-shadow: inset 0 0 0 2px rgba(224, 74, 61, 0.8);
+}
+
+.cell.tpl-preview-skip::after {
+  box-shadow: inset 0 0 0 2px rgba(90, 138, 94, 0.8);
+}
+
+.cell.selected {
+  box-shadow: 0 0 0 2px #8d3e37;
+}
 .palette { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .swatch { aspect-ratio: 1; border-radius: 8px; border: 3px solid transparent; cursor: pointer; }
 .swatch.active { border-color: #1f1b16; }
@@ -350,6 +372,24 @@ label { display: block; margin: 9px 0 5px; color: #76695e; font-size: 13px; }
   background: #c0b8ac;
   cursor: not-allowed;
   opacity: 0.7;
+}
+
+.cancel-preview-btn {
+  width: 100%;
+  font-size: 13px;
+  padding: 8px;
+  margin-top: 8px;
+  background: #e8dfd0;
+  color: #71675c;
+  border: 1px solid #d9cdbc;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cancel-preview-btn:hover {
+  background: #d9cdbc;
+  color: #5a4e42;
 }
 
 .template-section-title {

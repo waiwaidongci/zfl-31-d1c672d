@@ -4,6 +4,26 @@ const TemplateUI = (function() {
   let applyMode = TemplateApplier.MODE_OVERWRITE;
   let containerEl = null;
 
+  function updatePreview() {
+    if (selectedTemplateId) {
+      const template = TemplateData.getById(selectedTemplateId);
+      if (template) {
+        AppState.templatePreview = TemplateApplier.getPreviewPositions(template, { mode: applyMode });
+      }
+    } else {
+      AppState.templatePreview = null;
+    }
+  }
+
+  function clearPreview() {
+    AppState.templatePreview = null;
+  }
+
+  function clearPreviewState() {
+    selectedTemplateId = null;
+    clearPreview();
+  }
+
   function init(container) {
     containerEl = container;
     render();
@@ -39,8 +59,9 @@ const TemplateUI = (function() {
           </label>
         </div>
         <button class="insert-btn" id="insertTemplateBtn" ${!selectedTemplateId ? 'disabled' : ''}>
-          ${selectedTemplateId ? '插入到画布' : '请选择模板'}
+          ${selectedTemplateId ? '确认插入到画布' : '请选择模板'}
         </button>
+        ${selectedTemplateId ? '<button class="cancel-preview-btn" id="cancelPreviewBtn">取消预览</button>' : ''}
       </div>
     `;
 
@@ -51,32 +72,67 @@ const TemplateUI = (function() {
       tab.addEventListener("click", () => {
         activeCategory = tab.dataset.cat;
         selectedTemplateId = null;
+        clearPreview();
         render();
+        if (typeof window.render === 'function') {
+          window.render();
+        }
       });
     });
 
     containerEl.querySelectorAll('input[name="tplMode"]').forEach(radio => {
       radio.addEventListener("change", () => {
         applyMode = radio.value;
+        updatePreview();
+        if (typeof window.render === 'function') {
+          window.render();
+        }
       });
     });
 
-    containerEl.querySelector("#insertTemplateBtn").addEventListener("click", () => {
-      if (!selectedTemplateId) return;
-      const template = TemplateData.getById(selectedTemplateId);
-      if (template) {
-        const changed = TemplateApplier.applyTemplate(template, { mode: applyMode });
-        if (changed) {
-          render();
-          if (typeof window.render === 'function') {
-            window.render();
-          }
-          if (typeof window.renderSchemeList === 'function') {
-            window.renderSchemeList();
+    const insertBtn = containerEl.querySelector("#insertTemplateBtn");
+    if (insertBtn) {
+      insertBtn.addEventListener("click", () => {
+        if (!selectedTemplateId) return;
+        const template = TemplateData.getById(selectedTemplateId);
+        if (template) {
+          clearPreview();
+          const changed = TemplateApplier.applyTemplate(template, { mode: applyMode });
+          selectedTemplateId = null;
+          if (changed) {
+            render();
+            if (typeof window.render === 'function') {
+              window.render();
+            }
+            if (typeof window.renderSchemeList === 'function') {
+              window.renderSchemeList();
+            }
+          } else {
+            render();
+            if (typeof window.render === 'function') {
+              window.render();
+            }
           }
         }
-      }
-    });
+      });
+    }
+
+    const cancelBtn = containerEl.querySelector("#cancelPreviewBtn");
+    if (cancelBtn) {
+      cancelBtn.addEventListener("click", () => {
+        selectedTemplateId = null;
+        clearPreview();
+        render();
+        if (typeof window.render === 'function') {
+          window.render();
+        }
+      });
+    }
+
+    updatePreview();
+    if (typeof window.render === 'function') {
+      window.render();
+    }
   }
 
   function renderTemplateGrid(gridEl, templates) {
@@ -109,7 +165,9 @@ const TemplateUI = (function() {
         selectedTemplateId = card.dataset.id;
         const template = TemplateData.getById(selectedTemplateId);
         if (template) {
+          clearPreview();
           TemplateApplier.applyTemplate(template, { mode: applyMode });
+          selectedTemplateId = null;
           render();
           if (typeof window.render === 'function') {
             window.render();
@@ -150,6 +208,7 @@ const TemplateUI = (function() {
   return {
     init,
     render,
-    getSelectedTemplate
+    getSelectedTemplate,
+    clearPreviewState
   };
 })();

@@ -27,6 +27,7 @@ const EventBus = (function() {
 
 const AppState = (function() {
   var dragging = false;
+  var templatePreview = null;
 
   function getActive() {
     return SchemeStore.getActive();
@@ -39,6 +40,9 @@ const AppState = (function() {
   return {
     get dragging() { return dragging; },
     set dragging(v) { dragging = v; },
+
+    get templatePreview() { return templatePreview; },
+    set templatePreview(v) { templatePreview = v; },
 
     get cols() { return getActive().cols; },
     set cols(v) { SchemeStore.update(getActiveId(), { cols: v }); },

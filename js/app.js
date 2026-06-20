@@ -215,6 +215,14 @@ const App = (function() {
     SchemeUI.renderAll();
   }
 
+  window.render = function() {
+    GridRender.render();
+  };
+
+  window.renderSchemeList = function() {
+    SchemeUI.renderSchemeList();
+  };
+
   function _handleNewGrid() {
     var c = Number(_colsInput.value);
     var r = Number(_rowsInput.value);
@@ -225,10 +233,17 @@ const App = (function() {
       undo: [],
       redo: []
     });
+    AppState.templatePreview = null;
+    if (typeof TemplateUI !== 'undefined' && typeof TemplateUI.clearPreviewState === 'function') {
+      TemplateUI.clearPreviewState();
+    }
     SelectionState.reset();
     GridInteraction.setGridSize(c, r);
     GridRender.render();
     SchemeUI.renderSchemeList();
+    if (typeof TemplateUI !== 'undefined' && typeof TemplateUI.render === 'function') {
+      TemplateUI.render();
+    }
   }
 
   function _handleUndo() {
@@ -240,6 +255,10 @@ const App = (function() {
       redo: AppState.redo.concat([AppState.cells.slice()]),
       cells: last
     });
+    AppState.templatePreview = null;
+    if (typeof TemplateUI !== 'undefined' && typeof TemplateUI.clearPreviewState === 'function') {
+      TemplateUI.clearPreviewState();
+    }
     GridRender.render();
     SchemeUI.renderSchemeList();
   }
@@ -253,6 +272,10 @@ const App = (function() {
       undo: AppState.undo.concat([AppState.cells.slice()]),
       cells: last
     });
+    AppState.templatePreview = null;
+    if (typeof TemplateUI !== 'undefined' && typeof TemplateUI.clearPreviewState === 'function') {
+      TemplateUI.clearPreviewState();
+    }
     GridRender.render();
     SchemeUI.renderSchemeList();
   }

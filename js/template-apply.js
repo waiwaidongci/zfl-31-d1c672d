@@ -14,24 +14,62 @@ const TemplateApplier = (function() {
     return sortedThreads.length > 0 ? sortedThreads[0].id : null;
   }
 
+  function computeAllPositions(template, cols, rows) {
+    if (template.isBorder && !template.isCorner) {
+      return computeBorderPositions(template, cols, rows);
+    } else if (template.isCorner) {
+      return computeCornerPositions(template, cols, rows);
+    } else if (template.isGround || template.repeatable) {
+      return computeTiledPositions(template, cols, rows);
+    } else {
+      return computeCenteredPositions(template, cols, rows);
+    }
+  }
+
+  function getPreviewPositions(template, options = {}) {
+    const mode = options.mode || MODE_OVERWRITE;
+    const writesBlank = template.writesBlank === true;
+    const cols = AppState.cols;
+    const rows = AppState.rows;
+    const cells = AppState.cells;
+    const firstThreadId = getThreadIdByIndex(0);
+
+    const allPositions = computeAllPositions(template, cols, rows);
+    const preview = [];
+
+    allPositions.forEach(({ x, y, value }) => {
+      const idx = y * cols + x;
+      if (idx < 0 || idx >= cells.length) return;
+
+      const threadId = getThreadIdByIndex(value);
+
+      if (value === 0 && !writesBlank) return;
+
+      if (mode === MODE_SKIP && cells[idx] !== firstThreadId) {
+        return;
+      }
+
+      if (threadId && cells[idx] !== threadId) {
+        preview.push({
+          index: idx,
+          threadId: threadId,
+          isOverwrite: cells[idx] !== firstThreadId
+        });
+      }
+    });
+
+    return preview;
+  }
+
   function applyTemplate(template, options = {}) {
     const mode = options.mode || MODE_OVERWRITE;
     const writesBlank = template.writesBlank === true;
     const cols = AppState.cols;
     const rows = AppState.rows;
     const newCells = [...AppState.cells];
+    const firstThreadId = getThreadIdByIndex(0);
 
-    let positions = [];
-
-    if (template.isBorder && !template.isCorner) {
-      positions = computeBorderPositions(template, cols, rows);
-    } else if (template.isCorner) {
-      positions = computeCornerPositions(template, cols, rows);
-    } else if (template.isGround || template.repeatable) {
-      positions = computeTiledPositions(template, cols, rows);
-    } else {
-      positions = computeCenteredPositions(template, cols, rows);
-    }
+    const positions = computeAllPositions(template, cols, rows);
 
     let changed = false;
     positions.forEach(({ x, y, value }) => {
@@ -39,7 +77,6 @@ const TemplateApplier = (function() {
       if (idx < 0 || idx >= newCells.length) return;
 
       const threadId = getThreadIdByIndex(value);
-      const firstThreadId = getThreadIdByIndex(0);
 
       if (value === 0 && !writesBlank) return;
 
@@ -179,6 +216,7 @@ const TemplateApplier = (function() {
 
   return {
     applyTemplate,
+    getPreviewPositions,
     MODE_OVERWRITE,
     MODE_SKIP
   };
