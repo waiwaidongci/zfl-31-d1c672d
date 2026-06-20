@@ -3,8 +3,9 @@ const StorageMigration = (function() {
   var SCHEMES_KEY = "zfl31Schemes";
   var ACTIVE_KEY = "zfl31ActiveScheme";
   var LEGACY_KEY = "zfl31Pattern";
+  var BLOCKS_KEY = "zfl31CustomBlocks";
   var VERSION_KEY = "zfl31StorageVersion";
-  var CURRENT_VERSION = 3;
+  var CURRENT_VERSION = 4;
 
   function migrateAll() {
     var version = 0;
@@ -20,6 +21,9 @@ const StorageMigration = (function() {
     }
     if (version < 3) {
       _migrateV2toV3();
+    }
+    if (version < 4) {
+      _migrateV3toV4();
     }
 
     try {
@@ -171,6 +175,37 @@ const StorageMigration = (function() {
 
   function _uidVersion() {
     return "v_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function _migrateV3toV4() {
+    var blocks = {};
+    try {
+      var raw = localStorage.getItem(BLOCKS_KEY);
+      if (raw) {
+        blocks = JSON.parse(raw);
+      }
+    } catch (e) { return; }
+
+    if (!blocks || typeof blocks !== "object") return;
+
+    var changed = false;
+    Object.keys(blocks).forEach(function(id) {
+      var b = blocks[id];
+      if (!b.category) {
+        b.category = "未分类";
+        changed = true;
+      }
+      if (typeof b.notes === "undefined") {
+        b.notes = "";
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      try {
+        localStorage.setItem(BLOCKS_KEY, JSON.stringify(blocks));
+      } catch (e) {}
+    }
   }
 
   function _uid() {

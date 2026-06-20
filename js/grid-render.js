@@ -67,7 +67,16 @@ const GridRender = (function() {
   }
 
   function paint(i) {
-    if (!_canApplyBlock(i, AppState.block)) return;
+    var blockId = AppState.block;
+    var tileMode = AppState.blockTileMode;
+    var selection = SelectionState.getSelection();
+
+    if (tileMode && selection && blockId && blockId.startsWith("b_")) {
+      _paintTiled(selection);
+      return;
+    }
+
+    if (!_canApplyBlock(i, blockId)) return;
     snapshot();
     AppState.templatePreview = null;
     if (typeof TemplateUI !== 'undefined' && typeof TemplateUI.clearPreviewState === 'function') {
@@ -86,6 +95,57 @@ const GridRender = (function() {
     EventBus.emit("grid:changed");
   }
 
+  function _paintTiled(selection) {
+    var blockId = AppState.block;
+    if (!blockId || !blockId.startsWith("b_")) return;
+
+    var transform = AppState.blockTransform;
+    var bounds = BlockStore.getTransformedBlockBounds(blockId, transform);
+    if (!bounds) return;
+
+    var cols = AppState.cols;
+    var rows = AppState.rows;
+    var blockCols = bounds.cols;
+    var blockRows = bounds.rows;
+
+    if (blockCols <= 0 || blockRows <= 0) return;
+
+    snapshot();
+    AppState.templatePreview = null;
+    if (typeof TemplateUI !== 'undefined' && typeof TemplateUI.clearPreviewState === 'function') {
+      TemplateUI.clearPreviewState();
+      if (typeof TemplateUI.render === 'function') {
+        TemplateUI.render();
+      }
+    }
+
+    var newCells = AppState.cells.slice();
+    var offsets = BlockStore.getTransformedPatternOffsets(blockId, transform);
+    var startX = selection.startX;
+    var startY = selection.startY;
+    var endX = selection.endX;
+    var endY = selection.endY;
+
+    for (var baseY = startY; baseY <= endY; baseY += blockRows) {
+      for (var baseX = startX; baseX <= endX; baseX += blockCols) {
+        offsets.forEach(function(o) {
+          var targetX = baseX + o.dx;
+          var targetY = baseY + o.dy;
+          if (targetX >= startX && targetX <= endX && targetY >= startY && targetY <= endY) {
+            var idx = _idx(targetX, targetY);
+            if (idx !== null && idx >= 0 && idx < newCells.length) {
+              newCells[idx] = AppState.active;
+            }
+          }
+        });
+      }
+    }
+
+    AppState.cells = newCells;
+    render();
+    EventBus.emit("grid:changed");
+  }
+
   function _canApplyBlock(i, blockId) {
     var cols = AppState.cols, rows = AppState.rows;
     var x = i % cols, y = Math.floor(i / cols);
@@ -94,7 +154,8 @@ const GridRender = (function() {
       return true;
     }
 
-    var bounds = BlockStore.getBlockBounds(blockId);
+    var transform = AppState.blockTransform;
+    var bounds = BlockStore.getTransformedBlockBounds(blockId, transform);
     if (!bounds) return true;
 
     var maxX = x + bounds.cols - 1;
@@ -114,7 +175,8 @@ const GridRender = (function() {
       return [_idx(x, y - 1), _idx(x - 1, y), i, _idx(x + 1, y), _idx(x, y + 1)].filter(function(v) { return v !== null; });
 
     if (blockId && blockId.startsWith("b_")) {
-      var offsets = BlockStore.getPatternOffsets(blockId);
+      var transform = AppState.blockTransform;
+      var offsets = BlockStore.getTransformedPatternOffsets(blockId, transform);
       return offsets
         .map(function(o) { return _idx(x + o.dx, y + o.dy); })
         .filter(function(v) { return v !== null; });

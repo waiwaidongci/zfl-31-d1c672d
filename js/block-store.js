@@ -20,6 +20,23 @@ const BlockStore = (function() {
     } catch (e) {
       _blocks = {};
     }
+
+    let migrated = false;
+    Object.keys(_blocks).forEach(id => {
+      const block = _blocks[id];
+      if (!block.category) {
+        block.category = "未分类";
+        migrated = true;
+      }
+      if (typeof block.notes === "undefined") {
+        block.notes = "";
+        migrated = true;
+      }
+    });
+    if (migrated) {
+      _persist();
+    }
+
     _notify();
   }
 
@@ -58,6 +75,8 @@ const BlockStore = (function() {
     const block = {
       id,
       name: options.name || "新纹样块",
+      category: options.category || "未分类",
+      notes: options.notes || "",
       cols: Math.max(1, Math.min(12, options.cols || 3)),
       rows: Math.max(1, Math.min(12, options.rows || 3)),
       pattern: options.pattern || createEmptyPattern(options.cols || 3, options.rows || 3),
@@ -122,11 +141,162 @@ const BlockStore = (function() {
       ...JSON.parse(JSON.stringify(src)),
       id: newId,
       name: src.name + " 副本",
+      category: src.category || "未分类",
+      notes: src.notes || "",
       createdAt: now,
       updatedAt: now
     };
     _persist();
     return _blocks[newId];
+  }
+
+  function setCategory(id, category) {
+    if (!_blocks[id]) return null;
+    _blocks[id].category = category.trim() || "未分类";
+    _blocks[id].updatedAt = Date.now();
+    _persist();
+    return _blocks[id];
+  }
+
+  function setNotes(id, notes) {
+    if (!_blocks[id]) return null;
+    _blocks[id].notes = notes || "";
+    _blocks[id].updatedAt = Date.now();
+    _persist();
+    return _blocks[id];
+  }
+
+  function getAllCategories() {
+    const categories = new Set();
+    Object.values(_blocks).forEach(b => {
+      categories.add(b.category || "未分类");
+    });
+    return Array.from(categories).sort();
+  }
+
+  function filterByCategory(category) {
+    const blocks = Object.values(_blocks);
+    if (!category || category === "all") return blocks.sort((a, b) => b.updatedAt - a.updatedAt);
+    return blocks
+      .filter(b => (b.category || "未分类") === category)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  function searchByName(keyword) {
+    const blocks = Object.values(_blocks);
+    if (!keyword) return blocks.sort((a, b) => b.updatedAt - a.updatedAt);
+    const lower = keyword.toLowerCase();
+    return blocks
+      .filter(b => b.name.toLowerCase().includes(lower))
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  function getFiltered(options = {}) {
+    let blocks = Object.values(_blocks);
+    if (options.category && options.category !== "all") {
+      blocks = blocks.filter(b => (b.category || "未分类") === options.category);
+    }
+    if (options.search) {
+      const lower = options.search.toLowerCase();
+      blocks = blocks.filter(b => b.name.toLowerCase().includes(lower));
+    }
+    return blocks.sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  function rotatePattern90(pattern, cols, rows) {
+    const newPattern = Array(cols * rows).fill(false);
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const oldIdx = y * cols + x;
+        const newX = rows - 1 - y;
+        const newY = x;
+        const newIdx = newY * rows + newX;
+        newPattern[newIdx] = pattern[oldIdx] || false;
+      }
+    }
+    return { pattern: newPattern, cols: rows, rows: cols };
+  }
+
+  function flipPatternHorizontal(pattern, cols, rows) {
+    const newPattern = Array(cols * rows).fill(false);
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const oldIdx = y * cols + x;
+        const newX = cols - 1 - x;
+        const newIdx = y * cols + newX;
+        newPattern[newIdx] = pattern[oldIdx] || false;
+      }
+    }
+    return { pattern: newPattern, cols, rows };
+  }
+
+  function flipPatternVertical(pattern, cols, rows) {
+    const newPattern = Array(cols * rows).fill(false);
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const oldIdx = y * cols + x;
+        const newY = rows - 1 - y;
+        const newIdx = newY * cols + x;
+        newPattern[newIdx] = pattern[oldIdx] || false;
+      }
+    }
+    return { pattern: newPattern, cols, rows };
+  }
+
+  function getTransformedPattern(blockId, transform = {}) {
+    const block = _blocks[blockId];
+    if (!block) return null;
+
+    let result = {
+      pattern: [...block.pattern],
+      cols: block.cols,
+      rows: block.rows
+    };
+
+    if (transform.rotate90) {
+      result = rotatePattern90(result.pattern, result.cols, result.rows);
+    }
+    if (transform.flipH) {
+      result = flipPatternHorizontal(result.pattern, result.cols, result.rows);
+    }
+    if (transform.flipV) {
+      result = flipPatternVertical(result.pattern, result.cols, result.rows);
+    }
+
+    return result;
+  }
+
+  function getTransformedPatternOffsets(blockId, transform = {}) {
+    const transformed = getTransformedPattern(blockId, transform);
+    if (!transformed) return [];
+
+    const offsets = [];
+    const { cols, rows, pattern } = transformed;
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const idx = y * cols + x;
+        if (pattern[idx]) {
+          offsets.push({ dx: x, dy: y });
+        }
+      }
+    }
+    return offsets;
+  }
+
+  function getTransformedBlockBounds(blockId, transform = {}) {
+    const block = _blocks[blockId];
+    if (!block) return { cols: 1, rows: 1 };
+
+    let cols = block.cols;
+    let rows = block.rows;
+
+    if (transform.rotate90) {
+      const temp = cols;
+      cols = rows;
+      rows = temp;
+    }
+
+    return { cols, rows };
   }
 
   function remove(id) {
@@ -183,9 +353,21 @@ const BlockStore = (function() {
     duplicate,
     remove,
     rename,
+    setCategory,
+    setNotes,
     nextName,
     getPatternOffsets,
     getBlockBounds,
-    createEmptyPattern
+    createEmptyPattern,
+    getAllCategories,
+    filterByCategory,
+    searchByName,
+    getFiltered,
+    rotatePattern90,
+    flipPatternHorizontal,
+    flipPatternVertical,
+    getTransformedPattern,
+    getTransformedPatternOffsets,
+    getTransformedBlockBounds
   };
 })();

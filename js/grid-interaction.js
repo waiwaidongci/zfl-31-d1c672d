@@ -142,6 +142,19 @@ const GridInteraction = (function() {
     if (!_gridEl) return false;
 
     const cell = _getCellFromPoint(e.clientX, e.clientY);
+
+    if (typeof AppState !== 'undefined' && AppState.blockTileMode) {
+      const selection = SelectionState.getSelection();
+      const blockId = AppState.block;
+      if (selection && blockId && blockId.startsWith("b_")) {
+        if (typeof GridRender !== 'undefined' && typeof GridRender.paint === 'function') {
+          const cellIndex = cell ? cell.index : (selection.startY * AppState.cols + selection.startX);
+          GridRender.paint(cellIndex);
+          return true;
+        }
+      }
+    }
+
     if (!cell) {
       SelectionState.clearSelection();
       return true;

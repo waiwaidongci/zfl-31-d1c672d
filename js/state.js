@@ -28,6 +28,9 @@ const EventBus = (function() {
 const AppState = (function() {
   var dragging = false;
   var templatePreview = null;
+  var blockTransform = { rotate90: false, flipH: false, flipV: false };
+  var blockTileMode = false;
+  var blockFilter = { category: "all", search: "" };
 
   function getActive() {
     return SchemeStore.getActive();
@@ -58,6 +61,22 @@ const AppState = (function() {
 
     get block() { return getActive().activeBlock; },
     set block(v) { SchemeStore.update(getActiveId(), { activeBlock: v }); },
+
+    get blockTransform() { return { ...blockTransform }; },
+    setBlockTransform: function(transform) {
+      blockTransform = { ...blockTransform, ...transform };
+    },
+    resetBlockTransform: function() {
+      blockTransform = { rotate90: false, flipH: false, flipV: false };
+    },
+
+    get blockTileMode() { return blockTileMode; },
+    set blockTileMode(v) { blockTileMode = v; },
+
+    get blockFilter() { return { ...blockFilter }; },
+    setBlockFilter: function(filter) {
+      blockFilter = { ...blockFilter, ...filter };
+    },
 
     get undo() { return getActive().undo; },
     set undo(v) { SchemeStore.update(getActiveId(), { undo: v }); },

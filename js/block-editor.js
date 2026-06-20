@@ -33,6 +33,16 @@ const BlockEditor = (function() {
             </div>
             <div class="form-row form-row-inline">
               <div class="form-field">
+                <label>分类</label>
+                <input type="text" id="blockCategory" placeholder="输入分类名称" maxlength="20">
+              </div>
+              <div class="form-field">
+                <label>备注</label>
+                <input type="text" id="blockNotes" placeholder="输入备注信息" maxlength="50">
+              </div>
+            </div>
+            <div class="form-row form-row-inline">
+              <div class="form-field">
                 <label>宽度（列）</label>
                 <input type="number" id="blockCols" min="1" max="12" value="3">
               </div>
@@ -199,9 +209,13 @@ const BlockEditor = (function() {
 
   function _save() {
     const nameInput = _overlay.querySelector("#blockName");
+    const categoryInput = _overlay.querySelector("#blockCategory");
+    const notesInput = _overlay.querySelector("#blockNotes");
     const colsInput = _overlay.querySelector("#blockCols");
     const rowsInput = _overlay.querySelector("#blockRows");
     const name = nameInput.value.trim() || "未命名纹样块";
+    const category = categoryInput.value.trim() || "未分类";
+    const notes = notesInput.value.trim() || "";
     const newCols = Math.max(1, Math.min(12, parseInt(colsInput.value) || 1));
     const newRows = Math.max(1, Math.min(12, parseInt(rowsInput.value) || 1));
 
@@ -212,6 +226,8 @@ const BlockEditor = (function() {
     if (_currentBlockId) {
       BlockStore.update(_currentBlockId, {
         name,
+        category,
+        notes,
         cols: _editingData.cols,
         rows: _editingData.rows,
         pattern: [..._editingData.pattern]
@@ -219,6 +235,8 @@ const BlockEditor = (function() {
     } else {
       BlockStore.create({
         name,
+        category,
+        notes,
         cols: _editingData.cols,
         rows: _editingData.rows,
         pattern: [..._editingData.pattern]
@@ -238,6 +256,8 @@ const BlockEditor = (function() {
     _onSaveCallback = options.onSave || null;
 
     const nameInput = _overlay.querySelector("#blockName");
+    const categoryInput = _overlay.querySelector("#blockCategory");
+    const notesInput = _overlay.querySelector("#blockNotes");
     const colsInput = _overlay.querySelector("#blockCols");
     const rowsInput = _overlay.querySelector("#blockRows");
 
@@ -246,6 +266,8 @@ const BlockEditor = (function() {
       if (block) {
         _editingData = {
           name: block.name,
+          category: block.category || "未分类",
+          notes: block.notes || "",
           cols: block.cols,
           rows: block.rows,
           pattern: [...block.pattern]
@@ -257,6 +279,8 @@ const BlockEditor = (function() {
       const defaultRows = options.rows || 3;
       _editingData = {
         name: BlockStore.nextName(),
+        category: "未分类",
+        notes: "",
         cols: defaultCols,
         rows: defaultRows,
         pattern: BlockStore.createEmptyPattern(defaultCols, defaultRows)
@@ -265,6 +289,8 @@ const BlockEditor = (function() {
     }
 
     nameInput.value = _editingData.name;
+    categoryInput.value = _editingData.category;
+    notesInput.value = _editingData.notes;
     colsInput.value = _editingData.cols;
     rowsInput.value = _editingData.rows;
 
