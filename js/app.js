@@ -278,8 +278,7 @@ function renderSchemeList() {
       e.stopPropagation();
       const newScheme = SchemeStore.duplicate(id);
       if (newScheme) {
-        SchemeStore.setActive(newScheme.id);
-        refreshAll();
+        switchScheme(newScheme.id);
       }
     });
 
