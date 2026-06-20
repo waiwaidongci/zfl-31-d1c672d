@@ -146,7 +146,7 @@ const GridInteraction = (function() {
     if (typeof AppState !== 'undefined' && AppState.blockTileMode) {
       const selection = SelectionState.getSelection();
       const blockId = AppState.block;
-      if (selection && blockId && blockId.startsWith("b_")) {
+      if (selection && blockId) {
         if (typeof GridRender !== 'undefined' && typeof GridRender.paint === 'function') {
           const cellIndex = cell ? cell.index : (selection.startY * AppState.cols + selection.startX);
           GridRender.paint(cellIndex);

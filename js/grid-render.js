@@ -71,7 +71,7 @@ const GridRender = (function() {
     var tileMode = AppState.blockTileMode;
     var selection = SelectionState.getSelection();
 
-    if (tileMode && selection && blockId && blockId.startsWith("b_")) {
+    if (tileMode && selection && blockId) {
       _paintTiled(selection);
       return;
     }
@@ -95,12 +95,62 @@ const GridRender = (function() {
     EventBus.emit("grid:changed");
   }
 
+  function _getBasicBlockOffsets(blockId) {
+    if (blockId === "dot") {
+      return [{ dx: 0, dy: 0 }];
+    }
+    if (blockId === "cross") {
+      return [
+        { dx: 0, dy: 0 },
+        { dx: -1, dy: 0 },
+        { dx: 1, dy: 0 },
+        { dx: 0, dy: -1 },
+        { dx: 0, dy: 1 }
+      ];
+    }
+    if (blockId === "diamond") {
+      return [
+        { dx: 0, dy: -1 },
+        { dx: -1, dy: 0 },
+        { dx: 0, dy: 0 },
+        { dx: 1, dy: 0 },
+        { dx: 0, dy: 1 }
+      ];
+    }
+    return [];
+  }
+
+  function _getBasicBlockBounds(blockId) {
+    if (blockId === "dot") {
+      return { cols: 1, rows: 1 };
+    }
+    if (blockId === "cross" || blockId === "diamond") {
+      return { cols: 3, rows: 3 };
+    }
+    return { cols: 1, rows: 1 };
+  }
+
+  function _getBlockOffsets(blockId) {
+    if (blockId && blockId.startsWith("b_")) {
+      var transform = AppState.blockTransform;
+      return BlockStore.getTransformedPatternOffsets(blockId, transform);
+    }
+    return _getBasicBlockOffsets(blockId);
+  }
+
+  function _getBlockBounds(blockId) {
+    if (blockId && blockId.startsWith("b_")) {
+      var transform = AppState.blockTransform;
+      return BlockStore.getTransformedBlockBounds(blockId, transform);
+    }
+    return _getBasicBlockBounds(blockId);
+  }
+
   function _paintTiled(selection) {
     var blockId = AppState.block;
-    if (!blockId || !blockId.startsWith("b_")) return;
+    if (!blockId) return;
 
-    var transform = AppState.blockTransform;
-    var bounds = BlockStore.getTransformedBlockBounds(blockId, transform);
+    var bounds = _getBlockBounds(blockId);
     if (!bounds) return;
 
     var cols = AppState.cols;
@@ -120,7 +170,7 @@ const GridRender = (function() {
     }
 
     var newCells = AppState.cells.slice();
-    var offsets = BlockStore.getTransformedPatternOffsets(blockId, transform);
+    var offsets = _getBlockOffsets(blockId);
     var startX = selection.startX;
     var startY = selection.startY;
     var endX = selection.endX;
@@ -150,12 +200,15 @@ const GridRender = (function() {
     var cols = AppState.cols, rows = AppState.rows;
     var x = i % cols, y = Math.floor(i / cols);
 
-    if (!blockId || typeof blockId !== "string" || !blockId.startsWith("b_")) {
+    if (!blockId || typeof blockId !== "string") {
       return true;
     }
 
-    var transform = AppState.blockTransform;
-    var bounds = BlockStore.getTransformedBlockBounds(blockId, transform);
+    if (blockId === "dot" || blockId === "cross" || blockId === "diamond") {
+      return true;
+    }
+
+    var bounds = _getBlockBounds(blockId);
     if (!bounds) return true;
 
     var maxX = x + bounds.cols - 1;
@@ -169,20 +222,10 @@ const GridRender = (function() {
     var x = i % cols, y = Math.floor(i / cols);
     var blockId = AppState.block;
 
-    if (blockId === "cross")
-      return [i, _idx(x - 1, y), _idx(x + 1, y), _idx(x, y - 1), _idx(x, y + 1)].filter(function(v) { return v !== null; });
-    if (blockId === "diamond")
-      return [_idx(x, y - 1), _idx(x - 1, y), i, _idx(x + 1, y), _idx(x, y + 1)].filter(function(v) { return v !== null; });
-
-    if (blockId && blockId.startsWith("b_")) {
-      var transform = AppState.blockTransform;
-      var offsets = BlockStore.getTransformedPatternOffsets(blockId, transform);
-      return offsets
-        .map(function(o) { return _idx(x + o.dx, y + o.dy); })
-        .filter(function(v) { return v !== null; });
-    }
-
-    return [i];
+    var offsets = _getBlockOffsets(blockId);
+    return offsets
+      .map(function(o) { return _idx(x + o.dx, y + o.dy); })
+      .filter(function(v) { return v !== null; });
   }
 
   function _idx(x, y) {
