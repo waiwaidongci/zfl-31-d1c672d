@@ -29,15 +29,20 @@ const ExportPreview = (function() {
       schemeName: data.schemeName,
       cellSize: config.cellSize,
       showGrid: config.showGrid,
-      showLegend: config.showLegend
+      showLegend: config.showLegend,
+      transparentBg: config.transparentBg,
+      showTitle: config.showTitle,
+      margin: config.margin
     });
 
     const scale = _getSvgPreviewScale(result.width, result.height);
     const displayW = Math.round(result.width * scale);
     const displayH = Math.round(result.height * scale);
 
+    const canvasClass = config.transparentBg ? 'export-preview-canvas transparent-bg' : 'export-preview-canvas';
+
     _previewContainer.innerHTML = `
-      <div class="export-preview-canvas" style="width:${displayW}px;height:${displayH}px;">
+      <div class="${canvasClass}" style="width:${displayW}px;height:${displayH}px;">
         ${result.svg}
       </div>
       <div class="export-preview-meta">
@@ -58,9 +63,14 @@ const ExportPreview = (function() {
   function _buildHtml() {
     const config = ExportConfig.getAll();
     const sizeOptions = ExportConfig.getCellSizeOptions();
+    const marginOptions = ExportConfig.getMarginOptions();
 
     const sizeOptionsHtml = sizeOptions.map(opt =>
       `<option value="${opt.value}" ${opt.value === config.cellSize ? 'selected' : ''}>${opt.label}</option>`
+    ).join('');
+
+    const marginOptionsHtml = marginOptions.map(opt =>
+      `<option value="${opt.value}" ${opt.value === config.margin ? 'selected' : ''}>${opt.label}</option>`
     ).join('');
 
     return `
@@ -81,9 +91,23 @@ const ExportPreview = (function() {
                 <span>附带色线图例</span>
               </label>
               <label class="export-option">
+                <input type="checkbox" id="exportShowTitle" ${config.showTitle ? 'checked' : ''}>
+                <span>显示标题信息</span>
+              </label>
+              <label class="export-option">
+                <input type="checkbox" id="exportTransparentBg" ${config.transparentBg ? 'checked' : ''}>
+                <span>透明背景</span>
+              </label>
+              <label class="export-option">
                 <span>单格像素大小</span>
                 <select id="exportCellSize">
                   ${sizeOptionsHtml}
+                </select>
+              </label>
+              <label class="export-option">
+                <span>导出边距</span>
+                <select id="exportMargin">
+                  ${marginOptionsHtml}
                 </select>
               </label>
             </div>
@@ -126,10 +150,31 @@ const ExportPreview = (function() {
       });
     }
 
+    const showTitleCb = _overlay.querySelector('#exportShowTitle');
+    if (showTitleCb) {
+      showTitleCb.addEventListener('change', (e) => {
+        ExportConfig.setShowTitle(e.target.checked);
+      });
+    }
+
+    const transparentBgCb = _overlay.querySelector('#exportTransparentBg');
+    if (transparentBgCb) {
+      transparentBgCb.addEventListener('change', (e) => {
+        ExportConfig.setTransparentBg(e.target.checked);
+      });
+    }
+
     const cellSizeSel = _overlay.querySelector('#exportCellSize');
     if (cellSizeSel) {
       cellSizeSel.addEventListener('change', (e) => {
         ExportConfig.setCellSize(Number(e.target.value));
+      });
+    }
+
+    const marginSel = _overlay.querySelector('#exportMargin');
+    if (marginSel) {
+      marginSel.addEventListener('change', (e) => {
+        ExportConfig.setMargin(Number(e.target.value));
       });
     }
 
@@ -139,11 +184,17 @@ const ExportPreview = (function() {
         ExportConfig.reset();
         const showGridCb = _overlay.querySelector('#exportShowGrid');
         const showLegendCb = _overlay.querySelector('#exportShowLegend');
+        const showTitleCb = _overlay.querySelector('#exportShowTitle');
+        const transparentBgCb = _overlay.querySelector('#exportTransparentBg');
         const cellSizeSel = _overlay.querySelector('#exportCellSize');
+        const marginSel = _overlay.querySelector('#exportMargin');
         const config = ExportConfig.getAll();
         if (showGridCb) showGridCb.checked = config.showGrid;
         if (showLegendCb) showLegendCb.checked = config.showLegend;
+        if (showTitleCb) showTitleCb.checked = config.showTitle;
+        if (transparentBgCb) transparentBgCb.checked = config.transparentBg;
         if (cellSizeSel) cellSizeSel.value = String(config.cellSize);
+        if (marginSel) marginSel.value = String(config.margin);
       });
     }
 
@@ -154,7 +205,9 @@ const ExportPreview = (function() {
         const data = _getCurrentData();
         if (!data) return;
         const config = ExportConfig.getAll();
-        const safeName = (data.schemeName || 'brocade-pattern').replace(/[\\/:*?"<>|]/g, '_');
+        const baseName = (data.schemeName || 'brocade-pattern').trim();
+        const safeName = baseName.replace(/[\x00-\x1f\\/:*?"<>|]/g, '_').replace(/\.+$/, '');
+        const fileName = safeName ? safeName + '.svg' : 'brocade-pattern.svg';
         SvgGenerator.downloadSvg({
           cells: data.cells,
           cols: data.cols,
@@ -163,8 +216,11 @@ const ExportPreview = (function() {
           schemeName: data.schemeName,
           cellSize: config.cellSize,
           showGrid: config.showGrid,
-          showLegend: config.showLegend
-        }, safeName + '.svg');
+          showLegend: config.showLegend,
+          transparentBg: config.transparentBg,
+          showTitle: config.showTitle,
+          margin: config.margin
+        }, fileName);
       });
     }
 

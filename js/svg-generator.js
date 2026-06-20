@@ -56,14 +56,17 @@ const SvgGenerator = (function() {
       schemeName,
       cellSize = 20,
       showGrid = true,
-      showLegend = true
+      showLegend = true,
+      transparentBg = false,
+      showTitle = true,
+      margin = 20
     } = options;
 
     const gridW = cols * cellSize;
     const gridH = rows * cellSize;
 
-    const marginLeft = 20;
-    const marginTop = 20;
+    const marginLeft = margin;
+    const marginTop = margin;
     const titleFontSize = 18;
     const infoFontSize = 13;
     const titleGap = 8;
@@ -78,16 +81,18 @@ const SvgGenerator = (function() {
 
     const parts = [];
 
-    parts.push(`<text x="${marginLeft}" y="${contentY + titleFontSize}" font-family="Arial, sans-serif" font-size="${titleFontSize}" font-weight="bold" fill="#282018">${escapeXml(schemeName || '织锦纹样')}</text>`);
-    contentY += titleFontSize + titleGap;
+    if (showTitle) {
+      parts.push(`<text x="${marginLeft}" y="${contentY + titleFontSize}" font-family="Arial, sans-serif" font-size="${titleFontSize}" font-weight="bold" fill="#282018">${escapeXml(schemeName || '织锦纹样')}</text>`);
+      contentY += titleFontSize + titleGap;
 
-    const sizeText = `尺寸：${cols} 列 × ${rows} 行（共 ${cols * rows} 格）`;
-    const usedCount = colorStats.filter(s => s.count > 0).length;
-    const colorText = `用色：${usedCount} 种色线`;
-    parts.push(`<text x="${marginLeft}" y="${contentY + infoFontSize}" font-family="Arial, sans-serif" font-size="${infoFontSize}" fill="#5a4e42">${escapeXml(sizeText)}　${escapeXml(colorText)}</text>`);
-    contentY += infoFontSize + infoGap;
+      const sizeText = `尺寸：${cols} 列 × ${rows} 行（共 ${cols * rows} 格）`;
+      const usedCount = colorStats.filter(s => s.count > 0).length;
+      const colorText = `用色：${usedCount} 种色线`;
+      parts.push(`<text x="${marginLeft}" y="${contentY + infoFontSize}" font-family="Arial, sans-serif" font-size="${infoFontSize}" fill="#5a4e42">${escapeXml(sizeText)}　${escapeXml(colorText)}</text>`);
+      contentY += infoFontSize + infoGap;
 
-    contentY += gridGap;
+      contentY += gridGap;
+    }
 
     const gridX = marginLeft;
     const gridY = contentY;
@@ -120,19 +125,21 @@ const SvgGenerator = (function() {
 
     contentY = gridY + gridH + gridGap;
 
-    let totalW = marginLeft + gridW + marginLeft;
-    let totalH = contentY + marginLeft;
+    let totalW = marginLeft + gridW + margin;
+    let totalH = contentY + margin;
 
     if (showLegend) {
       const legend = buildLegend(threads, colorStats, cellSize, marginLeft, contentY);
       parts.push(legend.svg);
-      totalH = contentY + legend.height + marginLeft;
-      totalW = Math.max(totalW, marginLeft + legend.width + marginLeft);
+      totalH = contentY + legend.height + margin;
+      totalW = Math.max(totalW, marginLeft + legend.width + margin);
     }
+
+    const bgRect = transparentBg ? '' : `  <rect width="100%" height="100%" fill="#fffaf2"/>`;
 
     const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">
-  <rect width="100%" height="100%" fill="#fffaf2"/>
+${bgRect}
 ${parts.map(p => '  ' + p).join('\n')}
 </svg>`;
 
