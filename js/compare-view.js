@@ -4,6 +4,8 @@ const CompareView = (function() {
   let _compareResult = null;
   let _onBack = null;
   let _showDifferences = true;
+  let _schemeAId = null;
+  let _schemeBId = null;
 
   function escapeHtml(str) {
     const div = document.createElement("div");
@@ -19,10 +21,25 @@ const CompareView = (function() {
   function showCompare(schemeA, schemeB) {
     if (!_container) return;
 
+    _schemeAId = schemeA.id;
+    _schemeBId = schemeB.id;
+
     const threads = ThreadStore.getAll();
     _compareResult = CompareCalc.compareAll(schemeA, schemeB, threads);
     _showDifferences = true;
 
+    render();
+  }
+
+  function recalculate() {
+    if (!_schemeAId || !_schemeBId) return;
+
+    const schemeA = SchemeStore.getById(_schemeAId);
+    const schemeB = SchemeStore.getById(_schemeBId);
+    if (!schemeA || !schemeB) return;
+
+    const threads = ThreadStore.getAll();
+    _compareResult = CompareCalc.compareAll(schemeA, schemeB, threads);
     render();
   }
 
@@ -265,12 +282,17 @@ const CompareView = (function() {
   }
 
   function refresh() {
-    render();
+    if (_schemeAId && _schemeBId) {
+      recalculate();
+    } else {
+      render();
+    }
   }
 
   return {
     init,
     showCompare,
-    refresh
+    refresh,
+    recalculate
   };
 })();
