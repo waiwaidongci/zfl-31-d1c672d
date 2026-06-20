@@ -6,6 +6,7 @@ const CompareView = (function() {
   let _showDifferences = true;
   let _schemeAId = null;
   let _schemeBId = null;
+  let _alignment = { mode: 'top-left', offsetX: 0, offsetY: 0 };
 
   function escapeHtml(str) {
     const div = document.createElement("div");
@@ -23,15 +24,12 @@ const CompareView = (function() {
 
     _schemeAId = schemeA.id;
     _schemeBId = schemeB.id;
+    _alignment = { mode: 'top-left', offsetX: 0, offsetY: 0 };
 
-    const threads = ThreadStore.getAll();
-    _compareResult = CompareCalc.compareAll(schemeA, schemeB, threads);
-    _showDifferences = true;
-
-    render();
+    _recalcAndRender();
   }
 
-  function recalculate() {
+  function _recalcAndRender() {
     if (!_schemeAId || !_schemeBId) return;
 
     const schemeA = SchemeStore.getById(_schemeAId);
@@ -39,22 +37,43 @@ const CompareView = (function() {
     if (!schemeA || !schemeB) return;
 
     const threads = ThreadStore.getAll();
-    _compareResult = CompareCalc.compareAll(schemeA, schemeB, threads);
+    _compareResult = CompareCalc.compareAll(schemeA, schemeB, threads, _alignment);
     render();
+  }
+
+  function recalculate() {
+    _recalcAndRender();
+  }
+
+  function _buildDiffMap(diffResult) {
+    const mapA = {};
+    const mapB = {};
+
+    diffResult.differences.forEach(d => {
+      if (d.type === 'changed' || d.type === 'missing') {
+        mapA[d.idxA] = d.type;
+      }
+      if (d.type === 'changed' || d.type === 'added') {
+        mapB[d.idxB] = d.type;
+      }
+    });
+
+    return { mapA, mapB };
   }
 
   function renderGrid(scheme, slot, diffResult) {
     const threads = ThreadStore.getAll();
     const sorted = ThreadModel.sortByOrder(threads);
     const firstColor = sorted.length > 0 ? sorted[0].color : "#cccccc";
-    const diffSet = new Set(diffResult.differences.map(d => d.idx));
+    const { mapA, mapB } = _buildDiffMap(diffResult);
+    const diffMap = slot === 'A' ? mapA : mapB;
 
     let cellHtml = '';
     for (let i = 0; i < scheme.cells.length; i++) {
       const cellId = scheme.cells[i];
       const color = ThreadModel.getColorById(sorted, cellId) || firstColor;
-      const isDiff = _showDifferences && diffResult.canCompare && diffSet.has(i);
-      const diffClass = isDiff ? ' cell-diff' : '';
+      const diffType = _showDifferences && diffResult.canCompare ? diffMap[i] : null;
+      const diffClass = diffType ? ` cell-diff cell-diff-${diffType}` : '';
 
       cellHtml += `<div class="cell compare-cell${diffClass}" data-i="${i}" style="background:${color}"></div>`;
     }
@@ -77,6 +96,45 @@ const CompareView = (function() {
 
     return `
       <span class="compare-badge badge-warning">尺寸不同：A ${dimA.cols}×${dimA.rows} vs B ${dimB.cols}×${dimB.rows}</span>
+    `;
+  }
+
+  function renderAlignmentControls(cellDiff) {
+    const sameSize = cellDiff.sameSize;
+    if (sameSize) return '';
+
+    const modes = [
+      { key: 'top-left', label: '左上对齐' },
+      { key: 'center', label: '居中对齐' },
+      { key: 'custom', label: '自定义偏移' }
+    ];
+
+    const alignment = cellDiff.alignment || _alignment;
+    const isCustom = alignment.mode === 'custom';
+    const schemeA = SchemeStore.getById(_schemeAId);
+    const maxOffsetX = schemeA ? Math.max(schemeA.cols - 1, 20) : 20;
+    const maxOffsetY = schemeA ? Math.max(schemeA.rows - 1, 20) : 20;
+
+    return `
+      <div class="alignment-controls">
+        <span class="alignment-label">对齐方式</span>
+        <div class="alignment-mode-group">
+          ${modes.map(m => `
+            <button class="alignment-mode-btn ${alignment.mode === m.key ? 'active' : ''}" data-mode="${m.key}">${m.label}</button>
+          `).join('')}
+        </div>
+        ${isCustom ? `
+          <div class="custom-offset-group">
+            <label>横向偏移
+              <input type="number" id="offsetXInput" value="${alignment.offsetX}" min="-${maxOffsetX}" max="${maxOffsetX}" step="1">
+            </label>
+            <label>纵向偏移
+              <input type="number" id="offsetYInput" value="${alignment.offsetY}" min="-${maxOffsetY}" max="${maxOffsetY}" step="1">
+            </label>
+            <button class="secondary small" id="applyOffsetBtn">应用</button>
+          </div>
+        ` : ''}
+      </div>
     `;
   }
 
@@ -171,16 +229,19 @@ const CompareView = (function() {
   }
 
   function renderCellDiffSection(cellDiff) {
-    if (!cellDiff.canCompare) {
+    const sameSize = cellDiff.sameSize;
+
+    if (sameSize) {
       return `
         <div class="compare-section">
           <h4>逐格差异</h4>
-          <div class="compare-size-warning">
-            <div class="warning-icon">⚠</div>
-            <div>
-              <p class="warning-title">${cellDiff.message}</p>
-              <p class="warning-desc">由于尺寸不同，无法进行逐格对比。您可以调整其中一个方案的尺寸后再进行对比。</p>
-            </div>
+          <div class="compare-diff-summary">
+            <span class="diff-badge">相同 ${cellDiff.sameCount} 格</span>
+            <span class="diff-badge diff-changed">颜色变化 ${cellDiff.changedCount} 格</span>
+            <span class="diff-badge">差异率 ${cellDiff.diffRatio}%</span>
+          </div>
+          <div class="diff-legend">
+            <span class="legend-item"><span class="legend-swatch legend-changed"></span>颜色变化</span>
           </div>
         </div>
       `;
@@ -189,10 +250,18 @@ const CompareView = (function() {
     return `
       <div class="compare-section">
         <h4>逐格差异</h4>
+        ${renderAlignmentControls(cellDiff)}
         <div class="compare-diff-summary">
           <span class="diff-badge">相同 ${cellDiff.sameCount} 格</span>
-          <span class="diff-badge diff-highlight">差异 ${cellDiff.diffCount} 格</span>
-          <span class="diff-badge">差异率 ${cellDiff.diffRatio}%</span>
+          <span class="diff-badge diff-changed">颜色变化 ${cellDiff.changedCount} 格</span>
+          <span class="diff-badge diff-missing">A 独有 ${cellDiff.missingCount} 格</span>
+          <span class="diff-badge diff-added">B 新增 ${cellDiff.addedCount} 格</span>
+        </div>
+        <p class="diff-message">${cellDiff.message}</p>
+        <div class="diff-legend">
+          <span class="legend-item"><span class="legend-swatch legend-changed"></span>颜色变化</span>
+          <span class="legend-item"><span class="legend-swatch legend-missing"></span>A 独有（B 缺失）</span>
+          <span class="legend-item"><span class="legend-swatch legend-added"></span>B 新增（A 缺失）</span>
         </div>
       </div>
     `;
@@ -279,11 +348,37 @@ const CompareView = (function() {
         render();
       });
     }
+
+    const alignmentBtns = _container.querySelectorAll('.alignment-mode-btn');
+    alignmentBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset.mode;
+        _alignment.mode = mode;
+        if (mode !== 'custom') {
+          _alignment.offsetX = 0;
+          _alignment.offsetY = 0;
+        }
+        _recalcAndRender();
+      });
+    });
+
+    const applyOffsetBtn = _container.querySelector('#applyOffsetBtn');
+    if (applyOffsetBtn) {
+      applyOffsetBtn.addEventListener('click', () => {
+        const xInput = _container.querySelector('#offsetXInput');
+        const yInput = _container.querySelector('#offsetYInput');
+        if (xInput && yInput) {
+          _alignment.offsetX = parseInt(xInput.value, 10) || 0;
+          _alignment.offsetY = parseInt(yInput.value, 10) || 0;
+          _recalcAndRender();
+        }
+      });
+    }
   }
 
   function refresh() {
     if (_schemeAId && _schemeBId) {
-      recalculate();
+      _recalcAndRender();
     } else {
       render();
     }
