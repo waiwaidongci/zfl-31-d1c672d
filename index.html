@@ -32,7 +32,13 @@
         <button data-block="diamond" class="secondary">小菱形</button>
       </div>
     </aside>
-    <section class="panel"><div class="grid" id="grid"></div></section>
+    <section class="panel">
+      <div class="view-toggle-bar">
+        <button id="viewToggleBtn" class="secondary">织造工序视图</button>
+        <button id="exportProcessBtn" class="secondary" style="display:none;">导出工序JSON</button>
+      </div>
+      <div class="grid" id="grid"></div>
+    </section>
     <aside class="panel">
       <div id="templatePanel"></div>
       <h2>操作</h2>
@@ -49,6 +55,8 @@
   <script src="js/template-data.js"></script>
   <script src="js/template-apply.js"></script>
   <script src="js/template-ui.js"></script>
+  <script src="js/process-calc.js"></script>
+  <script src="js/process-view.js"></script>
   <script src="js/import-parser.js"></script>
   <script src="js/import-validator.js"></script>
   <script src="js/import-writer.js"></script>

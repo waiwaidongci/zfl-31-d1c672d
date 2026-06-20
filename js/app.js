@@ -319,6 +319,9 @@ function switchScheme(id) {
   if (SchemeStore.setActive(id)) {
     document.querySelector("#cols").value = AppState.cols;
     document.querySelector("#rows").value = AppState.rows;
+    if (typeof ProcessView !== "undefined" && ProcessView.isProcessView()) {
+      ProcessView.switchToCanvas();
+    }
     refreshAll();
   }
 }
@@ -326,8 +329,7 @@ function switchScheme(id) {
 function refreshAll() {
   renderSchemeList();
   render();
-  if (TemplateUI && typeof TemplateUI.render === 'function') {
-    // 模板UI重新渲染选中状态
+  if (typeof TemplateUI !== "undefined" && typeof TemplateUI.render === 'function') {
   }
 }
 
@@ -348,6 +350,10 @@ function init(loadSaved = true) {
   const templatePanel = document.querySelector("#templatePanel");
   if (templatePanel && TemplateUI && typeof TemplateUI.init === 'function') {
     TemplateUI.init(templatePanel);
+  }
+
+  if (typeof ProcessView !== "undefined") {
+    ProcessView.init({ gridEl: grid });
   }
 }
 
@@ -371,6 +377,9 @@ function render() {
     btn.classList.toggle("active", btn.dataset.block === AppState.block)
   );
   renderStats();
+  if (typeof ProcessView !== "undefined" && ProcessView.isProcessView()) {
+    ProcessView.refresh();
+  }
 }
 
 function snapshot() {
@@ -411,12 +420,18 @@ function renderStats() {
   preview.innerHTML = Array.from({length: 36}, (_, i) =>
     '<div class="mini" style="background:'+colors[AppState.cells[(i % 6) + Math.floor(i / 6) * AppState.cols] || colors[0]]+'"></div>'
   ).join("");
-  const riskRows = [];
-  for (let y = 0; y < AppState.rows; y++) {
-    let switches = 0;
-    for (let x = 1; x < AppState.cols; x++)
-      if (AppState.cells[y*AppState.cols+x] !== AppState.cells[y*AppState.cols+x-1]) switches++;
-    if (switches > AppState.cols * .62) riskRows.push(y + 1);
+  var riskRows = [];
+  if (typeof ProcessCalc !== "undefined") {
+    var steps = ProcessCalc.computeAllSteps(AppState.cells, AppState.cols, AppState.rows);
+    var summary = ProcessCalc.computeSummary(steps);
+    riskRows = summary.highRiskRows;
+  } else {
+    for (let y = 0; y < AppState.rows; y++) {
+      let switches = 0;
+      for (let x = 1; x < AppState.cols; x++)
+        if (AppState.cells[y*AppState.cols+x] !== AppState.cells[y*AppState.cols+x-1]) switches++;
+      if (switches > AppState.cols * .62) riskRows.push(y + 1);
+    }
   }
   risk.innerHTML = riskRows.length
     ? '<p class="warning">第'+riskRows.join("、")+'行换色过密，可能断线。</p>'
