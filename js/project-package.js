@@ -248,6 +248,29 @@ const ProjectPackage = (function() {
       idMap: { schemes: {}, threads: {}, blocks: {}, versions: {} }
     };
 
+    var ALL_KEYS = [
+      "zfl31Schemes",
+      "zfl31ActiveScheme",
+      "zfl31Threads",
+      "zfl31CustomBlocks",
+      "zfl31ExportConfig",
+      "zfl31RiskConfig"
+    ];
+    ALL_KEYS.forEach(function(k) {
+      try { localStorage.removeItem(k); } catch (e) {}
+    });
+
+    if (typeof SchemeStore !== "undefined" && SchemeStore._schemes) {
+      try {
+        Object.keys(SchemeStore._schemes).forEach(function(id) {
+          delete SchemeStore._schemes[id];
+        });
+      } catch (e) {}
+    }
+    if (typeof BlockStore !== "undefined" && BlockStore.load) BlockStore.load();
+    if (typeof ExportConfig !== "undefined" && ExportConfig.reset) ExportConfig.reset();
+    if (typeof RiskConfig !== "undefined" && RiskConfig.reset) RiskConfig.reset();
+
     const threadMap = {};
     const importedThreads = pkg.threads.map(function(t, i) {
       const newThread = ThreadModel.createThread({
@@ -579,10 +602,13 @@ const ProjectPackage = (function() {
     const existingVersionIds = {};
     (existing.versions || []).forEach(function(v) { existingVersionIds[v.id] = true; });
 
-    const versions = (s.versions || []).filter(function(v) {
-      return !existingVersionIds[v.id];
-    }).map(function(v) {
-      const newVersionId = v.id || uid("v");
+    const versions = (s.versions || []).map(function(v) {
+      let newVersionId;
+      if (v.id && existingVersionIds[v.id]) {
+        newVersionId = uid("v");
+      } else {
+        newVersionId = v.id || uid("v");
+      }
       result.idMap.versions[v.id] = newVersionId;
       return {
         id: newVersionId,
