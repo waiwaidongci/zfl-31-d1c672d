@@ -251,6 +251,60 @@ const CompareView = (function() {
     `;
   }
 
+  function renderYarnEstimateSection(yarnEst) {
+    if (!yarnEst || !yarnEst.a || !yarnEst.b) {
+      return '';
+    }
+
+    const totalDiffSign = yarnEst.totalDiffCm > 0 ? '+' : '';
+    const totalDiffClass = yarnEst.totalDiffCm > 0 ? 'diff-positive' : (yarnEst.totalDiffCm < 0 ? 'diff-negative' : 'diff-zero');
+
+    const rows = yarnEst.perThreadDiff.map(item => {
+      const diffSign = item.diff > 0 ? '+' : '';
+      const diffClass = item.diff > 0 ? 'diff-positive' : (item.diff < 0 ? 'diff-negative' : 'diff-zero');
+      const formatLen = (cm) => typeof YarnEstimate !== 'undefined' ? YarnEstimate.formatLength(cm) : (cm.toFixed(1) + ' cm');
+
+      return `
+        <div class="compare-color-row">
+          <span class="color-swatch" style="background:${item.color}"></span>
+          <span class="color-name">${escapeHtml(item.name)}</span>
+          <span class="color-count">${formatLen(item.recommendedA)}</span>
+          <span class="color-diff ${diffClass}">${diffSign}${formatLen(Math.abs(item.diff))}</span>
+          <span class="color-count">${formatLen(item.recommendedB)}</span>
+        </div>
+      `;
+    }).join('');
+
+    const formatLen = (cm) => typeof YarnEstimate !== 'undefined' ? YarnEstimate.formatLength(cm) : (cm.toFixed(1) + ' cm');
+
+    return `
+      <div class="compare-section">
+        <h4>色线备料长度对比（含损耗+余量）</h4>
+        <div class="compare-stats-row">
+          <div class="compare-stat-item slot-a">
+            <span class="stat-label">方案 A 总备料</span>
+            <span class="stat-value">${formatLen(yarnEst.a.totals.recommendedCm)}</span>
+          </div>
+          <div class="compare-stat-diff ${totalDiffClass}">${totalDiffSign}${formatLen(Math.abs(yarnEst.totalDiffCm))}</div>
+          <div class="compare-stat-item slot-b">
+            <span class="stat-label">方案 B 总备料</span>
+            <span class="stat-value">${formatLen(yarnEst.b.totals.recommendedCm)}</span>
+          </div>
+        </div>
+        <div class="compare-color-header">
+          <span></span>
+          <span>色线</span>
+          <span class="header-a">A 建议备料</span>
+          <span>差异</span>
+          <span class="header-b">B 建议备料</span>
+        </div>
+        <div class="compare-color-list">
+          ${rows}
+        </div>
+      </div>
+    `;
+  }
+
   function renderRiskRowsSection(risk) {
     const formatList = (arr) => arr.length > 0 ? arr.join('、') : '无';
 
@@ -356,7 +410,7 @@ const CompareView = (function() {
   function render() {
     if (!_container || !_compareResult || !_schemeA || !_schemeB) return;
 
-    const { dimensions, filledCells, colorUsage, riskRows, cellDiff } = _compareResult;
+    const { dimensions, filledCells, colorUsage, riskRows, cellDiff, yarnEstimate } = _compareResult;
 
     const canToggleDiff = cellDiff.canCompare && cellDiff.diffCount > 0;
 
@@ -403,6 +457,7 @@ const CompareView = (function() {
         <div class="compare-details">
           ${renderFilledCellsSection(filledCells)}
           ${renderColorUsageSection(colorUsage)}
+          ${renderYarnEstimateSection(yarnEstimate)}
           ${renderRiskRowsSection(riskRows)}
           ${renderCellDiffSection(cellDiff)}
           ${renderRestoreActions()}

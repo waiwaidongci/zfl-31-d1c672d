@@ -255,6 +255,53 @@ const CompareCalc = (function() {
     };
   }
 
+  function compareYarnEstimate(schemeA, schemeB, threads) {
+    if (typeof YarnEstimate === "undefined") {
+      return { a: null, b: null, diff: null };
+    }
+
+    const estA = YarnEstimate.computePerThreadEstimate({
+      cells: schemeA.cells, cols: schemeA.cols, rows: schemeA.rows,
+      threads: threads, scheme: schemeA
+    });
+    const estB = YarnEstimate.computePerThreadEstimate({
+      cells: schemeB.cells, cols: schemeB.cols, rows: schemeB.rows,
+      threads: threads, scheme: schemeB
+    });
+
+    const allThreadIds = new Set([
+      ...estA.estimates.map(e => e.id),
+      ...estB.estimates.map(e => e.id)
+    ]);
+    const perThreadDiff = [];
+
+    allThreadIds.forEach(threadId => {
+      const ea = estA.estimates.find(e => e.id === threadId);
+      const eb = estB.estimates.find(e => e.id === threadId);
+      const thread = threads.find(t => t.id === threadId);
+
+      if (thread) {
+        perThreadDiff.push({
+          threadId,
+          name: thread.name,
+          color: thread.color,
+          recommendedA: ea ? ea.recommendedCm : 0,
+          recommendedB: eb ? eb.recommendedCm : 0,
+          diff: (eb ? eb.recommendedCm : 0) - (ea ? ea.recommendedCm : 0)
+        });
+      }
+    });
+
+    perThreadDiff.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+
+    return {
+      a: estA,
+      b: estB,
+      perThreadDiff,
+      totalDiffCm: estB.totals.recommendedCm - estA.totals.recommendedCm
+    };
+  }
+
   function compareAll(schemeA, schemeB, threads, alignment) {
     const firstThreadId = ThreadStore.getFirstId();
 
@@ -265,7 +312,8 @@ const CompareCalc = (function() {
       filledCells: compareFilledCells(schemeA, schemeB, firstThreadId),
       colorUsage: compareColorUsage(schemeA, schemeB, threads),
       riskRows: compareRiskRows(schemeA, schemeB),
-      cellDiff: computeCellDifferences(schemeA, schemeB, alignment)
+      cellDiff: computeCellDifferences(schemeA, schemeB, alignment),
+      yarnEstimate: compareYarnEstimate(schemeA, schemeB, threads)
     };
   }
 
@@ -277,6 +325,7 @@ const CompareCalc = (function() {
     computeAlignmentOffset,
     computeCellDifferences,
     compareAll,
+    compareYarnEstimate,
     getRiskRows,
     getRiskRowsDetail
   };

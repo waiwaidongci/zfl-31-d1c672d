@@ -17,6 +17,21 @@ const ThreadStore = (function() {
       _threads = [];
     }
 
+    _threads.forEach(t => {
+      if (!t.lossConfig || typeof t.lossConfig !== "object") {
+        t.lossConfig = {
+          lossFactor: 1.15,
+          safetyMargin: 10
+        };
+      }
+      if (typeof t.lossConfig.lossFactor !== "number") {
+        t.lossConfig.lossFactor = 1.15;
+      }
+      if (typeof t.lossConfig.safetyMargin !== "number") {
+        t.lossConfig.safetyMargin = 10;
+      }
+    });
+
     const version = localStorage.getItem(VERSION_KEY);
     if (!version || Number(version) < CURRENT_VERSION) {
       _migrate();

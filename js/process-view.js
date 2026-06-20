@@ -87,6 +87,7 @@ const ProcessView = (function() {
 
   function renderProcessView(steps, summary, scheme) {
     var html = "";
+    var threads = ThreadStore.getAll();
 
     html += '<div class="process-header">';
     html += '<h3>织造工序步骤</h3>';
@@ -108,7 +109,55 @@ const ProcessView = (function() {
     }
     html += '</div>';
 
+    html += renderProcessYarnEstimate(scheme, threads, steps, summary);
+
     processEl.innerHTML = html;
+  }
+
+  function renderProcessYarnEstimate(scheme, threads, steps, summary) {
+    if (typeof YarnEstimate === "undefined") return "";
+
+    var estimate = YarnEstimate.computePerThreadEstimate({
+      cells: scheme.cells,
+      cols: scheme.cols,
+      rows: scheme.rows,
+      threads: threads,
+      scheme: scheme,
+      steps: steps,
+      summary: summary
+    });
+
+    var html = '<div class="process-yarn-estimate">';
+    html += '<h4>色线用量估算</h4>';
+    html += '<div class="process-summary-badges" style="margin-bottom: 10px;">';
+    html += '<span class="process-badge">单格 ' + estimate.schemeConfig.cellSizeMm + ' mm</span>';
+    html += '<span class="process-badge">经向 ' + YarnEstimate.formatLength(estimate.warpLengthCm) + '</span>';
+    html += '<span class="process-badge">纬向 ' + YarnEstimate.formatLength(estimate.weftLengthCm) + '</span>';
+    html += '<span class="process-badge badge-danger">建议备料 ' + estimate.totals.recommendedMeters + ' m</span>';
+    html += '</div>';
+
+    if (estimate.estimates.length > 0) {
+      html += '<div class="yarn-estimate-list">';
+      estimate.estimates.forEach(function(e) {
+        html += '<div class="yarn-estimate-item-row">' +
+          '<div class="yarn-estimate-item-head">' +
+            '<span class="yarn-estimate-color-swatch" style="background:' + e.color + '"></span>' +
+            '<span class="yarn-estimate-item-name">' + escapeHtml(e.name) + '</span>' +
+            '<span class="yarn-estimate-item-count">' + e.cellCount + ' 格</span>' +
+          '</div>' +
+          '<div class="yarn-estimate-item-details">' +
+            '<div class="yarn-estimate-detail"><span class="detail-label">基础用量</span><span class="detail-value">' + YarnEstimate.formatLength(e.baseTotalCm) + '</span></div>' +
+            '<div class="yarn-estimate-detail"><span class="detail-label">损耗×' + e.lossFactor.toFixed(2) + '</span><span class="detail-value">' + YarnEstimate.formatLength(e.withLossCm) + '</span></div>' +
+            '<div class="yarn-estimate-detail"><span class="detail-label">安全余量 ' + e.safetyMargin + '%</span><span class="detail-value">' + YarnEstimate.formatLength(e.withSafetyCm) + '</span></div>' +
+            '<div class="yarn-estimate-detail recommended"><span class="detail-label">建议备料</span><span class="detail-value">' + YarnEstimate.formatLength(e.recommendedCm) + '</span></div>' +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+
+    html += '</div>';
+    return html;
   }
 
   function renderStep(step) {

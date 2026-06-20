@@ -6,6 +6,18 @@ const ImportExport = (function() {
     var colorStats = ThreadModel.computeColorStats(active.cells, threads);
     var versions = VersionHistory.getExportData(active.id);
 
+    var estimateConfig = active.estimateConfig || (typeof YarnEstimate !== 'undefined' ? YarnEstimate.getDefaults() : null);
+    var yarnEstimate = null;
+    if (typeof YarnEstimate !== 'undefined') {
+      yarnEstimate = YarnEstimate.computePerThreadEstimate({
+        cells: active.cells,
+        cols: active.cols,
+        rows: active.rows,
+        threads: threads,
+        scheme: active
+      });
+    }
+
     var data = {
       name: active.name,
       cols: active.cols,
@@ -17,7 +29,8 @@ const ImportExport = (function() {
           name: t.name,
           color: t.color,
           note: t.note,
-          order: t.order
+          order: t.order,
+          lossConfig: t.lossConfig || { lossFactor: 1.15, safetyMargin: 10 }
         };
       }),
       usage: colorStats.map(function(s) {
@@ -29,6 +42,8 @@ const ImportExport = (function() {
           count: s.count
         };
       }),
+      estimateConfig: estimateConfig,
+      yarnEstimate: yarnEstimate,
       versions: versions
     };
 

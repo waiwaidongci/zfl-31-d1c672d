@@ -7,6 +7,8 @@ const App = (function() {
   var _statsEl = null;
   var _previewEl = null;
   var _riskEl = null;
+  var _yarnEstimateSummaryEl = null;
+  var _yarnEstimateListEl = null;
   var _schemeListEl = null;
   var _schemeFilterEl = null;
   var _colsInput = null;
@@ -32,6 +34,8 @@ const App = (function() {
     _statsEl = document.querySelector("#stats");
     _previewEl = document.querySelector("#preview");
     _riskEl = document.querySelector("#risk");
+    _yarnEstimateSummaryEl = document.querySelector("#yarnEstimateSummary");
+    _yarnEstimateListEl = document.querySelector("#yarnEstimateList");
     _schemeListEl = document.querySelector("#schemeList");
     _schemeFilterEl = document.querySelector("#schemeFilter");
     _colsInput = document.querySelector("#cols");
@@ -54,9 +58,112 @@ const App = (function() {
       gridEl: _gridEl,
       statsEl: _statsEl,
       previewEl: _previewEl,
-      riskEl: _riskEl
+      riskEl: _riskEl,
+      yarnEstimateSummaryEl: _yarnEstimateSummaryEl,
+      yarnEstimateListEl: _yarnEstimateListEl
     });
     SchemeUI.init({ listEl: _schemeListEl, filterEl: _schemeFilterEl });
+    _initYarnEstimateUI();
+  }
+
+  function _initYarnEstimateUI() {
+    var toggleBtn = document.querySelector("#yarnEstimateToggle");
+    var panel = document.querySelector("#yarnEstimatePanel");
+    var applyBtn = document.querySelector("#applyYarnEstimate");
+    var resetBtn = document.querySelector("#resetYarnEstimate");
+
+    if (toggleBtn && panel) {
+      toggleBtn.addEventListener("click", function() {
+        var isHidden = panel.style.display === "none" || !panel.style.display;
+        panel.style.display = isHidden ? "" : "none";
+        if (isHidden) {
+          _fillYarnEstimateForm();
+        }
+      });
+    }
+
+    if (applyBtn) {
+      applyBtn.addEventListener("click", function() {
+        _applyYarnEstimateConfig();
+      });
+    }
+
+    if (resetBtn) {
+      resetBtn.addEventListener("click", function() {
+        _resetYarnEstimateForm();
+      });
+    }
+
+    _fillYarnEstimateForm();
+  }
+
+  function _fillYarnEstimateForm() {
+    var scheme = SchemeStore.getActive();
+    if (!scheme) return;
+    var cfg = YarnEstimate.ensureSchemeEstimateConfig(scheme);
+
+    var cellSizeInput = document.querySelector("#cellSizeMm");
+    var warpDensityInput = document.querySelector("#warpDensity");
+    var weftDensityInput = document.querySelector("#weftDensity");
+    var lossFactorInput = document.querySelector("#defaultLossFactor");
+    var safetyMarginInput = document.querySelector("#defaultSafetyMargin");
+
+    if (cellSizeInput) cellSizeInput.value = cfg.cellSizeMm;
+    if (warpDensityInput) warpDensityInput.value = cfg.warpDensity;
+    if (weftDensityInput) weftDensityInput.value = cfg.weftDensity;
+    if (lossFactorInput) lossFactorInput.value = cfg.defaultLossFactor;
+    if (safetyMarginInput) safetyMarginInput.value = cfg.defaultSafetyMargin;
+  }
+
+  function _applyYarnEstimateConfig() {
+    var cellSizeInput = document.querySelector("#cellSizeMm");
+    var warpDensityInput = document.querySelector("#warpDensity");
+    var weftDensityInput = document.querySelector("#weftDensity");
+    var lossFactorInput = document.querySelector("#defaultLossFactor");
+    var safetyMarginInput = document.querySelector("#defaultSafetyMargin");
+
+    var cfg = {
+      cellSizeMm: Number(cellSizeInput ? cellSizeInput.value : 2.0),
+      warpDensity: Number(warpDensityInput ? warpDensityInput.value : 5.0),
+      weftDensity: Number(weftDensityInput ? weftDensityInput.value : 5.0),
+      defaultLossFactor: Number(lossFactorInput ? lossFactorInput.value : 1.15),
+      defaultSafetyMargin: Number(safetyMarginInput ? safetyMarginInput.value : 10)
+    };
+
+    if (isNaN(cfg.cellSizeMm) || cfg.cellSizeMm <= 0) cfg.cellSizeMm = 2.0;
+    if (isNaN(cfg.warpDensity) || cfg.warpDensity <= 0) cfg.warpDensity = 5.0;
+    if (isNaN(cfg.weftDensity) || cfg.weftDensity <= 0) cfg.weftDensity = 5.0;
+    if (isNaN(cfg.defaultLossFactor) || cfg.defaultLossFactor < 1.0) cfg.defaultLossFactor = 1.15;
+    if (isNaN(cfg.defaultSafetyMargin) || cfg.defaultSafetyMargin < 0) cfg.defaultSafetyMargin = 10;
+
+    SchemeStore.update(SchemeStore.getActiveId(), { estimateConfig: cfg });
+    GridRender.render();
+    SchemeUI.renderSchemeList();
+    if (typeof ProcessView !== "undefined" && ProcessView.isProcessView()) {
+      ProcessView.refresh();
+    }
+
+    var btn = document.querySelector("#applyYarnEstimate");
+    if (btn) {
+      var orig = btn.textContent;
+      btn.textContent = "已应用 ✓";
+      setTimeout(function() { btn.textContent = orig; }, 1200);
+    }
+  }
+
+  function _resetYarnEstimateForm() {
+    var defaults = YarnEstimate.getDefaults();
+    var cellSizeInput = document.querySelector("#cellSizeMm");
+    var warpDensityInput = document.querySelector("#warpDensity");
+    var weftDensityInput = document.querySelector("#weftDensity");
+    var lossFactorInput = document.querySelector("#defaultLossFactor");
+    var safetyMarginInput = document.querySelector("#defaultSafetyMargin");
+
+    if (cellSizeInput) cellSizeInput.value = defaults.cellSizeMm;
+    if (warpDensityInput) warpDensityInput.value = defaults.warpDensity;
+    if (weftDensityInput) weftDensityInput.value = defaults.weftDensity;
+    if (lossFactorInput) lossFactorInput.value = defaults.defaultLossFactor;
+    if (safetyMarginInput) safetyMarginInput.value = defaults.defaultSafetyMargin;
   }
 
   function _initInteractions() {
@@ -116,7 +223,8 @@ const App = (function() {
             cols: active.cols,
             rows: active.rows,
             threads: threads,
-            schemeName: active.name
+            schemeName: active.name,
+            scheme: active
           };
         }
       });

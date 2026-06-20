@@ -40,6 +40,10 @@ const ImportWriter = (function() {
       redo: []
     };
 
+    if (parsedData.estimateConfig && typeof parsedData.estimateConfig === "object") {
+      updateData.estimateConfig = parsedData.estimateConfig;
+    }
+
     if (versions && Array.isArray(versions) && versions.length > 0 &&
         typeof VersionHistory !== "undefined" && VersionHistory.importVersions) {
       const validVersions = versions.filter(function(v) {
@@ -106,6 +110,10 @@ const ImportWriter = (function() {
       undo: [],
       redo: []
     };
+
+    if (parsedData.estimateConfig && typeof parsedData.estimateConfig === "object") {
+      updateData.estimateConfig = parsedData.estimateConfig;
+    }
 
     if (options.rename && name) {
       updateData.name = resolveUniqueName(name, schemeStore, activeId);

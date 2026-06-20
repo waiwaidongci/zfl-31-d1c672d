@@ -161,11 +161,27 @@ const ProcessCalc = (function() {
 
     var riskConfig = typeof RiskConfig !== 'undefined' ? RiskConfig.getAll() : null;
 
+    var estimateConfig = scheme.estimateConfig || null;
+    var yarnEstimate = null;
+    if (typeof YarnEstimate !== 'undefined') {
+      yarnEstimate = YarnEstimate.computePerThreadEstimate({
+        cells: cells,
+        cols: cols,
+        rows: rows,
+        threads: threads,
+        scheme: scheme,
+        steps: steps,
+        summary: summary
+      });
+    }
+
     return {
       name: scheme.name,
       cols: cols,
       rows: rows,
       riskConfig: riskConfig,
+      estimateConfig: estimateConfig,
+      yarnEstimate: yarnEstimate,
       steps: steps.map(function(s) {
         return {
           row: s.row,
@@ -177,7 +193,16 @@ const ProcessCalc = (function() {
           riskNote: s.riskNote
         };
       }),
-      threads: threads || [],
+      threads: (threads || []).map(function(t) {
+        return {
+          id: t.id,
+          name: t.name,
+          color: t.color,
+          note: t.note,
+          order: t.order,
+          lossConfig: t.lossConfig || { lossFactor: 1.15, safetyMargin: 10 }
+        };
+      }),
       summary: {
         totalSwitches: summary.totalSwitches,
         totalEffectiveSwitches: summary.totalEffectiveSwitches,

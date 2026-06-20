@@ -52,13 +52,36 @@ const ImportParser = (function() {
       ? raw.usage.filter(u => u && typeof u === "object")
       : null;
 
-    const threads = Array.isArray(raw.threads)
+    let threads = Array.isArray(raw.threads)
       ? raw.threads.filter(t => t && typeof t === "object")
       : null;
+
+    if (threads) {
+      threads = threads.map(t => ({
+        ...t,
+        lossConfig: t.lossConfig && typeof t.lossConfig === "object"
+          ? {
+              lossFactor: typeof t.lossConfig.lossFactor === "number" ? t.lossConfig.lossFactor : 1.15,
+              safetyMargin: typeof t.lossConfig.safetyMargin === "number" ? t.lossConfig.safetyMargin : 10
+            }
+          : { lossFactor: 1.15, safetyMargin: 10 }
+      }));
+    }
 
     const versions = Array.isArray(raw.versions)
       ? raw.versions.filter(v => v && typeof v === "object")
       : null;
+
+    let estimateConfig = null;
+    if (raw.estimateConfig && typeof raw.estimateConfig === "object") {
+      estimateConfig = {
+        cellSizeMm: typeof raw.estimateConfig.cellSizeMm === "number" ? raw.estimateConfig.cellSizeMm : 2.0,
+        warpDensity: typeof raw.estimateConfig.warpDensity === "number" ? raw.estimateConfig.warpDensity : 5.0,
+        weftDensity: typeof raw.estimateConfig.weftDensity === "number" ? raw.estimateConfig.weftDensity : 5.0,
+        defaultLossFactor: typeof raw.estimateConfig.defaultLossFactor === "number" ? raw.estimateConfig.defaultLossFactor : 1.15,
+        defaultSafetyMargin: typeof raw.estimateConfig.defaultSafetyMargin === "number" ? raw.estimateConfig.defaultSafetyMargin : 10
+      };
+    }
 
     return {
       name,
@@ -68,6 +91,7 @@ const ImportParser = (function() {
       usage,
       threads,
       versions,
+      estimateConfig,
       raw
     };
   }

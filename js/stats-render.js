@@ -158,6 +158,46 @@ const StatsRender = (function() {
     riskEl.innerHTML = html;
   }
 
+  function renderYarnEstimate(summaryEl, listEl, cells, cols, rows, threads, scheme) {
+    if (!summaryEl && !listEl) return;
+
+    const estimate = YarnEstimate.computePerThreadEstimate({
+      cells, cols, rows, threads, scheme
+    });
+
+    if (summaryEl) {
+      let html = '';
+      html += '<div class="yarn-estimate-summary-row"><span class="label">单格尺寸</span><span class="value">' + estimate.schemeConfig.cellSizeMm + ' mm</span></div>';
+      html += '<div class="yarn-estimate-summary-row"><span class="label">经向长度</span><span class="value">' + YarnEstimate.formatLength(estimate.warpLengthCm) + '</span></div>';
+      html += '<div class="yarn-estimate-summary-row"><span class="label">纬向长度</span><span class="value">' + YarnEstimate.formatLength(estimate.weftLengthCm) + '</span></div>';
+      html += '<div class="yarn-estimate-summary-row"><span class="label">基础总用量</span><span class="value">' + estimate.totals.baseTotalMeters + ' m</span></div>';
+      html += '<div class="yarn-estimate-summary-row total"><span class="label">建议备料（含损耗+余量）</span><span class="value">' + estimate.totals.recommendedMeters + ' m</span></div>';
+      summaryEl.innerHTML = html;
+    }
+
+    if (listEl) {
+      if (estimate.estimates.length === 0) {
+        listEl.innerHTML = '<div class="empty-hint">暂无色线用量数据</div>';
+      } else {
+        listEl.innerHTML = estimate.estimates.map(e => {
+          return '<div class="yarn-estimate-item-row">' +
+            '<div class="yarn-estimate-item-head">' +
+              '<span class="yarn-estimate-color-swatch" style="background:' + e.color + '"></span>' +
+              '<span class="yarn-estimate-item-name">' + escapeHtml(e.name) + '</span>' +
+              '<span class="yarn-estimate-item-count">' + e.cellCount + ' 格</span>' +
+            '</div>' +
+            '<div class="yarn-estimate-item-details">' +
+              '<div class="yarn-estimate-detail"><span class="detail-label">基础用量</span><span class="detail-value">' + YarnEstimate.formatLength(e.baseTotalCm) + '</span></div>' +
+              '<div class="yarn-estimate-detail"><span class="detail-label">损耗×' + e.lossFactor.toFixed(2) + '</span><span class="detail-value">' + YarnEstimate.formatLength(e.withLossCm) + '</span></div>' +
+              '<div class="yarn-estimate-detail"><span class="detail-label">安全余量 ' + e.safetyMargin + '%</span><span class="detail-value">' + YarnEstimate.formatLength(e.withSafetyCm) + '</span></div>' +
+              '<div class="yarn-estimate-detail recommended"><span class="detail-label">建议备料</span><span class="detail-value">' + YarnEstimate.formatLength(e.recommendedCm) + '</span></div>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      }
+    }
+  }
+
   function renderAll(options) {
     const {
       paletteEl,
@@ -165,11 +205,14 @@ const StatsRender = (function() {
       statsEl,
       previewEl,
       riskEl,
+      yarnEstimateSummaryEl,
+      yarnEstimateListEl,
       cells,
       cols,
       rows,
       activeThreadId,
       threads,
+      scheme,
       onThreadSelect,
       onCellDown,
       onCellEnter,
@@ -197,6 +240,10 @@ const StatsRender = (function() {
       const riskRows = computeRiskRows(cells, cols, rows);
       renderRisk(riskEl, riskRows);
     }
+
+    if ((yarnEstimateSummaryEl || yarnEstimateListEl) && cells && cols && rows && threads) {
+      renderYarnEstimate(yarnEstimateSummaryEl, yarnEstimateListEl, cells, cols, rows, threads, scheme);
+    }
   }
 
   return {
@@ -206,6 +253,7 @@ const StatsRender = (function() {
     renderGrid,
     computeRiskRows,
     renderRisk,
+    renderYarnEstimate,
     renderAll
   };
 })();

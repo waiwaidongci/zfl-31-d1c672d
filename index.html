@@ -70,6 +70,45 @@
       <div id="selectionInfo" class="selection-info" style="display:none;">已选 <span class="selection-size" id="selectionSize">0×0</span></div>
       <h2>用色统计</h2>
       <div class="stats" id="stats"></div>
+      <h2>色线用量估算</h2>
+      <div class="yarn-estimate-section">
+        <div class="yarn-estimate-config">
+          <button class="yarn-estimate-toggle secondary" id="yarnEstimateToggle">⚙ 用量参数设置</button>
+          <div class="yarn-estimate-panel" id="yarnEstimatePanel" style="display:none;">
+            <div class="yarn-estimate-item">
+              <label>单格物理尺寸 (mm)</label>
+              <input type="number" id="cellSizeMm" min="0.1" max="20" step="0.1" value="2.0">
+              <p class="yarn-estimate-desc">每格对应的实际物理尺寸</p>
+            </div>
+            <div class="yarn-estimate-item">
+              <label>经向密度 (格/cm)</label>
+              <input type="number" id="warpDensity" min="0.5" max="50" step="0.5" value="5.0">
+              <p class="yarn-estimate-desc">每厘米经向包含的格数</p>
+            </div>
+            <div class="yarn-estimate-item">
+              <label>纬向密度 (格/cm)</label>
+              <input type="number" id="weftDensity" min="0.5" max="50" step="0.5" value="5.0">
+              <p class="yarn-estimate-desc">每厘米纬向包含的格数</p>
+            </div>
+            <div class="yarn-estimate-item">
+              <label>默认损耗系数</label>
+              <input type="number" id="defaultLossFactor" min="1.0" max="3.0" step="0.05" value="1.15">
+              <p class="yarn-estimate-desc">织造过程中的线损耗倍率（1.15 = 15% 损耗）</p>
+            </div>
+            <div class="yarn-estimate-item">
+              <label>默认安全余量 (%)</label>
+              <input type="number" id="defaultSafetyMargin" min="0" max="100" step="1" value="10">
+              <p class="yarn-estimate-desc">额外预留的安全余量百分比</p>
+            </div>
+            <div class="yarn-estimate-actions">
+              <button class="secondary" id="resetYarnEstimate">恢复默认</button>
+              <button class="primary" id="applyYarnEstimate">应用参数</button>
+            </div>
+          </div>
+        </div>
+        <div class="yarn-estimate-summary" id="yarnEstimateSummary"></div>
+        <div class="yarn-estimate-list" id="yarnEstimateList"></div>
+      </div>
       <h2>重复单元预览</h2>
       <div class="preview" id="preview"></div>
       <h2>断线风险</h2>
@@ -118,6 +157,7 @@
   </main>
   <script src="js/thread-model.js"></script>
   <script src="js/thread-store.js"></script>
+  <script src="js/yarn-estimate.js"></script>
   <script src="js/stats-render.js"></script>
   <script src="js/selection-state.js"></script>
   <script src="js/batch-transform.js"></script>

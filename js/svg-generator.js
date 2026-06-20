@@ -9,7 +9,7 @@ const SvgGenerator = (function() {
       .replace(/'/g, '&apos;');
   }
 
-  function buildLegend(threads, usedStats, cellSize, startX, startY) {
+  function buildLegend(threads, usedStats, cellSize, startX, startY, yarnEstimate) {
     const legendPadding = 8;
     const legendRowHeight = 22;
     const legendColorSize = 16;
@@ -21,24 +21,39 @@ const SvgGenerator = (function() {
       usedStats.some(s => s.id === t.id && s.count > 0)
     );
 
+    const hasYarnEstimate = yarnEstimate && yarnEstimate.estimates && yarnEstimate.estimates.length > 0;
+    const estimateMap = {};
+    if (hasYarnEstimate) {
+      yarnEstimate.estimates.forEach(e => { estimateMap[e.id] = e; });
+    }
+
     const items = [];
     items.push(`<text x="${startX}" y="${startY}" font-family="Arial, sans-serif" font-size="${legendTitleSize}" font-weight="bold" fill="#282018">色线图例</text>`);
 
     let y = startY + legendTitleSize + legendPadding;
 
+    if (hasYarnEstimate) {
+      items.push(`<text x="${startX}" y="${y + legendFontSize - 2}" font-family="Arial, sans-serif" font-size="${legendFontSize}" fill="#5a4e42">单格 ${yarnEstimate.schemeConfig.cellSizeMm} mm · 建议总备料 ${yarnEstimate.totals.recommendedMeters} m</text>`);
+      y += legendRowHeight;
+    }
+
     usedThreads.forEach(thread => {
       const stat = usedStats.find(s => s.id === thread.id);
       const count = stat ? stat.count : 0;
+      const estimate = estimateMap[thread.id];
 
       items.push(`<rect x="${startX}" y="${y}" width="${legendColorSize}" height="${legendColorSize}" fill="${thread.color}" stroke="#d9cdbc" stroke-width="1"/>`);
-      const label = `${escapeXml(thread.name)} — ${count} 格${thread.note ? '（' + escapeXml(thread.note) + '）' : ''}`;
+      let label = `${escapeXml(thread.name)} — ${count} 格${thread.note ? '（' + escapeXml(thread.note) + '）' : ''}`;
+      if (estimate) {
+        label += ` · 建议 ${estimate.recommendedMeters} m`;
+      }
       items.push(`<text x="${startX + legendColorSize + 8}" y="${y + legendColorSize - 2}" font-family="Arial, sans-serif" font-size="${legendFontSize}" fill="#282018">${label}</text>`);
 
       y += legendRowHeight;
     });
 
-    const legendW = Math.max(180, 200);
-    const legendH = legendTitleSize + legendPadding + usedThreads.length * legendRowHeight + legendPadding;
+    const legendW = Math.max(280, 300);
+    const legendH = legendTitleSize + legendPadding + (hasYarnEstimate ? 1 : 0) * legendRowHeight + usedThreads.length * legendRowHeight + legendPadding;
 
     return {
       svg: items.join('\n'),
@@ -54,6 +69,7 @@ const SvgGenerator = (function() {
       rows,
       threads,
       schemeName,
+      scheme,
       cellSize = 20,
       showGrid = true,
       showLegend = true,
@@ -78,6 +94,13 @@ const SvgGenerator = (function() {
     const firstColor = sorted.length > 0 ? sorted[0].color : '#cccccc';
     const colorStats = ThreadModel.computeColorStats(cells, threads);
 
+    let yarnEstimate = null;
+    if (typeof YarnEstimate !== 'undefined') {
+      yarnEstimate = YarnEstimate.computePerThreadEstimate({
+        cells, cols, rows, threads, scheme
+      });
+    }
+
     let contentY = marginTop;
 
     const parts = [];
@@ -89,7 +112,11 @@ const SvgGenerator = (function() {
       const sizeText = `尺寸：${cols} 列 × ${rows} 行（共 ${cols * rows} 格）`;
       const usedCount = colorStats.filter(s => s.count > 0).length;
       const colorText = `用色：${usedCount} 种色线`;
-      parts.push(`<text x="${marginLeft}" y="${contentY + infoFontSize}" font-family="Arial, sans-serif" font-size="${infoFontSize}" fill="#5a4e42">${escapeXml(sizeText)}　${escapeXml(colorText)}</text>`);
+      let estimateText = '';
+      if (yarnEstimate) {
+        estimateText = `　建议总备料：${yarnEstimate.totals.recommendedMeters} m（单格 ${yarnEstimate.schemeConfig.cellSizeMm} mm）`;
+      }
+      parts.push(`<text x="${marginLeft}" y="${contentY + infoFontSize}" font-family="Arial, sans-serif" font-size="${infoFontSize}" fill="#5a4e42">${escapeXml(sizeText)}　${escapeXml(colorText)}${escapeXml(estimateText)}</text>`);
       contentY += infoFontSize + infoGap;
 
       contentY += gridGap;
@@ -131,7 +158,7 @@ const SvgGenerator = (function() {
 
     if (showLegend) {
       contentY += gridGap;
-      const legend = buildLegend(threads, colorStats, cellSize, marginLeft, contentY);
+      const legend = buildLegend(threads, colorStats, cellSize, marginLeft, contentY, yarnEstimate);
       parts.push(legend.svg);
       totalH = contentY + legend.height + margin;
       totalW = Math.max(totalW, marginLeft + legend.width + margin);

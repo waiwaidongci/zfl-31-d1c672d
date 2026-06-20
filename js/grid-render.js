@@ -4,29 +4,37 @@ const GridRender = (function() {
   var _statsEl = null;
   var _previewEl = null;
   var _riskEl = null;
+  var _yarnEstimateSummaryEl = null;
+  var _yarnEstimateListEl = null;
 
   function init(options) {
     _gridEl = options.gridEl || null;
     _statsEl = options.statsEl || null;
     _previewEl = options.previewEl || null;
     _riskEl = options.riskEl || null;
+    _yarnEstimateSummaryEl = options.yarnEstimateSummaryEl || null;
+    _yarnEstimateListEl = options.yarnEstimateListEl || null;
   }
 
   function render() {
     var threads = ThreadStore.getAll();
     var activeThreadId = AppState.active;
     var isSelectMode = SelectionState.getMode() === "select";
+    var scheme = SchemeStore.getActive();
 
     var renderOptions = {
       statsEl: _statsEl,
       previewEl: _previewEl,
       riskEl: _riskEl,
+      yarnEstimateSummaryEl: _yarnEstimateSummaryEl,
+      yarnEstimateListEl: _yarnEstimateListEl,
       gridEl: _gridEl,
       cells: AppState.cells,
       cols: AppState.cols,
       rows: AppState.rows,
       activeThreadId: activeThreadId,
       threads: threads,
+      scheme: scheme,
       onThreadSelect: function(threadId) {
         AppState.active = threadId;
         render();

@@ -38,6 +38,15 @@ const SchemeStore = (function() {
       if (!Array.isArray(_schemes[id].tags)) {
         _schemes[id].tags = [];
       }
+      if (!_schemes[id].estimateConfig || typeof _schemes[id].estimateConfig !== "object") {
+        _schemes[id].estimateConfig = YarnEstimate ? YarnEstimate.getDefaults() : {
+          cellSizeMm: 2.0,
+          warpDensity: 5.0,
+          weftDensity: 5.0,
+          defaultLossFactor: 1.15,
+          defaultSafetyMargin: 10
+        };
+      }
     });
 
     if (Object.keys(_schemes).length === 0) {
@@ -95,6 +104,13 @@ const SchemeStore = (function() {
     var id = uid();
     var now = Date.now();
     var firstThreadId = ThreadStore.getFirstId();
+    var defaultEstimate = YarnEstimate ? YarnEstimate.getDefaults() : {
+      cellSizeMm: 2.0,
+      warpDensity: 5.0,
+      weftDensity: 5.0,
+      defaultLossFactor: 1.15,
+      defaultSafetyMargin: 10
+    };
     _schemes[id] = {
       id: id,
       name: name || "新方案",
@@ -108,6 +124,7 @@ const SchemeStore = (function() {
       versions: [],
       favorite: false,
       tags: [],
+      estimateConfig: defaultEstimate,
       createdAt: now,
       updatedAt: now
     };

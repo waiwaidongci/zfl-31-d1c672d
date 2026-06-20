@@ -16,12 +16,17 @@ const ThreadModel = (function() {
   }
 
   function createThread(options = {}) {
+    var defaultLoss = {
+      lossFactor: typeof options.lossFactor === "number" ? options.lossFactor : 1.15,
+      safetyMargin: typeof options.safetyMargin === "number" ? options.safetyMargin : 10
+    };
     return {
       id: options.id || uid(),
       name: options.name || "未命名色线",
       color: options.color || "#cccccc",
       note: options.note || "",
-      order: typeof options.order === "number" ? options.order : 0
+      order: typeof options.order === "number" ? options.order : 0,
+      lossConfig: options.lossConfig || defaultLoss
     };
   }
 
