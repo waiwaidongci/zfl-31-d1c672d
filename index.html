@@ -162,6 +162,18 @@
         try {
           const legacy = JSON.parse(legacyRaw);
           if (!legacy || !Array.isArray(legacy.cells)) return;
+          const existing = Object.values(this._schemes).find(s =>
+            s.name === "默认方案" &&
+            s.cols === (legacy.cols || 18) &&
+            s.rows === (legacy.rows || 14) &&
+            JSON.stringify(s.cells) === JSON.stringify(legacy.cells)
+          );
+          if (existing) {
+            if (!this._activeId) this._activeId = existing.id;
+            localStorage.removeItem(LEGACY_KEY);
+            this._persistActive();
+            return;
+          }
           const id = uid();
           const now = Date.now();
           this._schemes[id] = {
@@ -180,6 +192,7 @@
           if (!this._activeId) this._activeId = id;
           this._persist();
           this._persistActive();
+          localStorage.removeItem(LEGACY_KEY);
         } catch (e) {}
       },
 
@@ -283,6 +296,14 @@
         if (!this._activeId) return;
         this._schemes[this._activeId].updatedAt = Date.now();
         this._persist();
+      },
+
+      nextName(base = "新方案") {
+        const names = new Set(Object.values(this._schemes).map(s => s.name));
+        if (!names.has(base)) return base;
+        let i = 2;
+        while (names.has(`${base} ${i}`)) i++;
+        return `${base} ${i}`;
       }
     };
 
@@ -582,15 +603,15 @@
     };
 
     document.querySelector("#newSchemeBtn").onclick = () => {
-      const name = prompt("请输入新方案名称：", "新方案");
-      if (name === null) return;
       const c = Number(document.querySelector("#cols").value) || 18;
       const r = Number(document.querySelector("#rows").value) || 14;
-      const newScheme = SchemeStore.create(name, c, r);
+      const newScheme = SchemeStore.create(SchemeStore.nextName(), c, r);
       SchemeStore.setActive(newScheme.id);
       document.querySelector("#cols").value = c;
       document.querySelector("#rows").value = r;
       refreshAll();
+      const item = schemeListEl.querySelector(`[data-id="${newScheme.id}"]`);
+      if (item) startRename(newScheme.id, item);
     };
 
     init();
