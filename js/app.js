@@ -422,6 +422,20 @@ function init(loadSaved = true) {
       }
     });
   }
+
+  if (typeof BlockUI !== "undefined") {
+    const blocksContainer = document.querySelector(".blocks-container");
+    if (blocksContainer) {
+      BlockUI.init({
+        container: blocksContainer,
+        onBlockSelect: (blockId) => {
+          AppState.block = blockId;
+          render();
+          renderSchemeList();
+        }
+      });
+    }
+  }
 }
 
 function render() {
@@ -456,7 +470,8 @@ function render() {
 
   window.onpointerup = () => AppState.dragging = false;
 
-  document.querySelectorAll("[data-block]").forEach(btn =>
+  const builtinBlockBtns = document.querySelectorAll(".builtin-blocks [data-block]");
+  builtinBlockBtns.forEach(btn =>
     btn.classList.toggle("active", btn.dataset.block === AppState.block)
   );
 
@@ -474,6 +489,9 @@ function snapshot() {
 }
 
 function paint(i) {
+  if (!canApplyBlock(i, AppState.block)) {
+    return;
+  }
   snapshot();
   const targets = pattern(i);
   const newCells = [...AppState.cells];
@@ -483,13 +501,46 @@ function paint(i) {
   renderSchemeList();
 }
 
+function canApplyBlock(i, blockId) {
+  const cols = AppState.cols, rows = AppState.rows;
+  const x = i % cols, y = Math.floor(i / cols);
+
+  if (blockId === "dot") return true;
+
+  if (blockId === "cross") {
+    return x > 0 && x < cols - 1 && y > 0 && y < rows - 1;
+  }
+
+  if (blockId === "diamond") {
+    return x > 0 && x < cols - 1 && y > 0 && y < rows - 1;
+  }
+
+  const bounds = BlockStore.getBlockBounds(blockId);
+  if (!bounds) return true;
+
+  const maxX = x + bounds.cols - 1;
+  const maxY = y + bounds.rows - 1;
+
+  return x >= 0 && maxX < cols && y >= 0 && maxY < rows;
+}
+
 function pattern(i) {
   const cols = AppState.cols, rows = AppState.rows;
   const x = i % cols, y = Math.floor(i / cols);
-  if (AppState.block === "cross")
+  const blockId = AppState.block;
+
+  if (blockId === "cross")
     return [i, idx(x-1,y), idx(x+1,y), idx(x,y-1), idx(x,y+1)].filter(v => v !== null);
-  if (AppState.block === "diamond")
+  if (blockId === "diamond")
     return [idx(x,y-1), idx(x-1,y), i, idx(x+1,y), idx(x,y+1)].filter(v => v !== null);
+
+  if (blockId && blockId.startsWith("b_")) {
+    const offsets = BlockStore.getPatternOffsets(blockId);
+    return offsets
+      .map(o => idx(x + o.dx, y + o.dy))
+      .filter(v => v !== null);
+  }
+
   return [i];
 }
 
@@ -610,10 +661,6 @@ function batchPasteSelection() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  document.querySelectorAll("[data-block]").forEach(btn =>
-    btn.onclick = () => { AppState.block = btn.dataset.block; render(); }
-  );
-
   document.querySelector("#newBtn").onclick = () => {
     const c = Number(document.querySelector("#cols").value);
     const r = Number(document.querySelector("#rows").value);

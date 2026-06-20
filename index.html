@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="css/batch-toolbar.css">
   <link rel="stylesheet" href="css/compare.css">
   <link rel="stylesheet" href="css/export-preview.css">
+  <link rel="stylesheet" href="css/blocks.css">
 </head>
 <body>
   <header>
@@ -28,11 +29,7 @@
       <button id="newBtn">新建网格</button>
       <div id="threadPanel"></div>
       <h2>基础纹样块</h2>
-      <div class="blocks">
-        <button data-block="dot" class="secondary">单点</button>
-        <button data-block="cross" class="secondary">十字</button>
-        <button data-block="diamond" class="secondary">小菱形</button>
-      </div>
+      <div class="blocks-container"></div>
     </aside>
     <section class="panel">
       <div class="view-toggle-bar">
@@ -83,6 +80,9 @@
   <script src="js/selection-state.js"></script>
   <script src="js/batch-transform.js"></script>
   <script src="js/grid-interaction.js"></script>
+  <script src="js/block-store.js"></script>
+  <script src="js/block-editor.js"></script>
+  <script src="js/block-ui.js"></script>
   <script src="js/template-data.js"></script>
   <script src="js/template-apply.js"></script>
   <script src="js/template-ui.js"></script>

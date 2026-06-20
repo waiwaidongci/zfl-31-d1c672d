@@ -1,0 +1,288 @@
+.blocks-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.blocks-header h2 {
+  margin: 0;
+}
+
+.builtin-blocks {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.custom-blocks-section {
+  border-top: 1px solid #e1d5c5;
+  padding-top: 12px;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #76695e;
+  margin-bottom: 8px;
+}
+
+.custom-blocks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.custom-block-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 2px solid #d9cdbc;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.custom-block-item:hover {
+  border-color: #a89377;
+  background: #fff8ec;
+}
+
+.custom-block-item.active {
+  border-color: #8d3e37;
+  background: #faf0e0;
+  box-shadow: 0 0 0 2px rgba(141, 62, 55, 0.15);
+}
+
+.custom-block-preview {
+  flex-shrink: 0;
+}
+
+.block-mini-preview {
+  display: grid;
+  gap: 1px;
+  padding: 4px;
+  background: #e8dfd0;
+  border-radius: 4px;
+  width: 48px;
+  height: 48px;
+}
+
+.block-mini-cell {
+  background: #f8ead2;
+  border-radius: 1px;
+}
+
+.block-mini-cell.filled {
+  background: #8d3e37;
+}
+
+.custom-block-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.custom-block-name {
+  font-weight: 700;
+  font-size: 13px;
+  color: #282018;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-block-item.active .custom-block-name {
+  color: #8d3e37;
+}
+
+.custom-block-size {
+  font-size: 11px;
+  color: #8a7c6c;
+}
+
+.custom-block-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.block-rename-input {
+  width: 100%;
+  padding: 2px 4px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid #8d3e37;
+  border-radius: 4px;
+}
+
+.block-editor-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(40, 32, 24, 0.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.block-editor-dialog {
+  background: #fffaf2;
+  border: 1px solid #d9cdbc;
+  border-radius: 12px;
+  width: min(560px, 92vw);
+  max-height: 90vh;
+  box-shadow: 0 10px 40px rgba(40, 32, 24, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.block-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e1d5c5;
+  background: #fff;
+}
+
+.block-editor-title {
+  margin: 0;
+  font-size: 18px;
+  color: #282018;
+}
+
+.block-editor-close {
+  background: transparent;
+  border: 0;
+  font-size: 18px;
+  color: #76695e;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.block-editor-close:hover {
+  background: #e8dfd0;
+  color: #282018;
+}
+
+.block-editor-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.block-editor-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-row-inline {
+  flex-direction: row;
+  gap: 12px;
+}
+
+.form-field {
+  flex: 1;
+}
+
+.form-row label {
+  margin: 0;
+  font-size: 13px;
+  color: #76695e;
+  font-weight: 600;
+}
+
+.block-editor-tools {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.block-editor-tools button {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.block-editor-grid {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  background: #72533c;
+  border-radius: 6px;
+  width: min(320px, 100%);
+  aspect-ratio: 1;
+  margin: 0 auto;
+}
+
+.bcell {
+  background: #f8ead2;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.bcell:hover {
+  opacity: 0.8;
+}
+
+.bcell.filled {
+  background: #8d3e37;
+}
+
+.block-preview-small {
+  display: grid;
+  gap: 1px;
+  padding: 6px;
+  background: #e8dfd0;
+  border-radius: 6px;
+  width: min(120px, 30%);
+  aspect-ratio: 1;
+  margin: 0 auto;
+}
+
+.pcell {
+  background: #f8ead2;
+  border-radius: 1px;
+}
+
+.pcell.filled {
+  background: #8d3e37;
+}
+
+.block-editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid #e1d5c5;
+  background: #fff;
+}
+
+.block-editor-footer .primary {
+  background: #8d3e37;
+  color: #fff;
+  font-weight: 800;
+}
+
+@media (max-width: 1000px) {
+  .custom-blocks-list {
+    max-height: 240px;
+  }
+}
