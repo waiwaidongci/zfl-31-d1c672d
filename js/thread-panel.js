@@ -220,11 +220,10 @@ const ThreadPanel = (function() {
       return;
     }
 
-    const isUsed = ThreadStore.isUsedInAnyScheme(id);
-    const usedCount = getUsedCountInActiveScheme(id);
+    const usage = ThreadStore.getUsageInfo(id);
 
-    if (isUsed && usedCount > 0) {
-      showDeleteWithReplaceDialog(id, thread, usedCount);
+    if (usage.schemeCount > 0) {
+      showDeleteWithReplaceDialog(id, thread, usage);
     } else {
       if (confirm(`确定删除色线"${thread.name}"吗？`)) {
         ThreadStore.remove(id);
@@ -240,8 +239,15 @@ const ThreadPanel = (function() {
     return scheme.cells.filter(v => v === id).length;
   }
 
-  function showDeleteWithReplaceDialog(id, thread, usedCount) {
+  function showDeleteWithReplaceDialog(id, thread, usage) {
     const otherThreads = ThreadStore.getAll().filter(t => t.id !== id);
+
+    const schemeListHtml = usage.schemes.map(s =>
+      `<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:13px;">
+        <span style="color:#5b4d3f;">• ${escapeHtml(s.name)}</span>
+        <span style="color:#76695e;">${s.count} 格</span>
+      </div>`
+    ).join("");
 
     const overlay = document.createElement("div");
     overlay.className = "thread-dialog-overlay";
@@ -255,7 +261,7 @@ const ThreadPanel = (function() {
     dialog.className = "thread-dialog";
     dialog.style.cssText = `
       background: #fffaf2; border: 1px solid #d9cdbc; border-radius: 12px;
-      width: min(420px, 92vw);
+      width: min(440px, 92vw); max-height: 85vh; overflow-y: auto;
       box-shadow: 0 10px 40px rgba(40, 32, 24, 0.25);
     `;
 
@@ -263,17 +269,19 @@ const ThreadPanel = (function() {
       <div style="padding: 20px 24px;">
         <h3 style="margin: 0 0 12px; font-size: 18px;">删除色线</h3>
         <div style="background: #fdf0ee; border: 1px solid #f0c4be; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-          <p style="margin: 0 0 4px; font-weight: 700; color: #a03a2e;">⚠️ 色线正在使用中</p>
-          <p style="margin: 0; color: #76695e; font-size: 13px;">
-            色线"${escapeHtml(thread.name)}"在当前方案中被使用了 <b>${usedCount}</b> 格。
+          <p style="margin: 0 0 6px; font-weight: 700; color: #a03a2e;">⚠️ 色线正在使用中</p>
+          <p style="margin: 0 0 8px; color: #76695e; font-size: 13px;">
+            色线"${escapeHtml(thread.name)}"在 <b>${usage.schemeCount}</b> 个方案中被使用，共 <b>${usage.totalCells}</b> 格。
             删除后这些格子将被替换为其他色线。
           </p>
+          <div style="background:#fff;border:1px solid #f0d8d4;border-radius:6px;padding:6px 10px;">
+            ${schemeListHtml}
+          </div>
         </div>
         <label style="display: block; margin-bottom: 8px; color: #76695e; font-size: 13px;">选择替换色线：</label>
         <select id="replaceThreadSelect" style="width:100%;padding:8px;border:1px solid #d9cdbc;border-radius:6px;">
           ${otherThreads.map(t => `
             <option value="${t.id}">
-              <span style="display:inline-block;width:12px;height:12px;background:${t.color};"></span>
               ${escapeHtml(t.name)}
             </option>
           `).join("")}

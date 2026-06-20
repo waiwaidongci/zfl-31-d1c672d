@@ -233,6 +233,31 @@ const ThreadStore = (function() {
     }
   }
 
+  function getUsageInfo(id) {
+    const result = { schemeCount: 0, totalCells: 0, schemes: [] };
+    try {
+      const schemesRaw = localStorage.getItem("zfl31Schemes");
+      if (!schemesRaw) return result;
+
+      const schemes = JSON.parse(schemesRaw);
+      if (!schemes || typeof schemes !== "object") return result;
+
+      Object.keys(schemes).forEach(schemeId => {
+        const scheme = schemes[schemeId];
+        if (scheme.cells && Array.isArray(scheme.cells)) {
+          const count = scheme.cells.filter(v => v === id).length;
+          if (count > 0) {
+            result.schemeCount++;
+            result.totalCells += count;
+            result.schemes.push({
+              id: schemeId, name: scheme.name || schemeId, count });
+          }
+        }
+      });
+    } catch (e) {}
+    return result;
+  }
+
   function getUsedCountInScheme(cells, id) {
     if (!cells || !Array.isArray(cells)) return 0;
     return cells.filter(v => v === id).length;
@@ -284,6 +309,7 @@ const ThreadStore = (function() {
     remove,
     reorder,
     isUsedInAnyScheme,
+    getUsageInfo,
     getUsedCountInScheme,
     importThreads,
     toJSON
