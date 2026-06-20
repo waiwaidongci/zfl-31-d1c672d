@@ -186,7 +186,7 @@ const VersionTimelineUI = (function() {
     var html = '<div class="vt-detail">';
     html += '  <div class="vt-detail-header">';
     html += '    <h3>版本详情</h3>';
-    html += '    <button class="vt-detail-close" data-action="close-detail">✕</button>';
+    html += '    <button class="vt-detail-close" data-action="close-detail" data-vid="' + version.id + '">✕</button>';
     html += '  </div>';
 
     html += '  <div class="vt-detail-time">' + _formatDateTime(version.timestamp) + '</div>';
@@ -230,22 +230,25 @@ const VersionTimelineUI = (function() {
       el.addEventListener("click", function(e) {
         var btn = e.target.closest("[data-action]");
         var vid = el.dataset.vid || (btn ? btn.dataset.vid : null);
-        if (!vid) return;
 
         if (btn) {
           e.stopPropagation();
           var action = btn.dataset.action;
+          if (action === "close-detail") {
+            _selectedVersionId = null;
+            refresh();
+            return;
+          }
+          if (!vid) return;
           if (action === "restore") {
             _handleRestore(schemeId, vid);
           } else if (action === "label") {
             _handleLabel(schemeId, vid);
           } else if (action === "delete") {
             _handleDelete(schemeId, vid);
-          } else if (action === "close-detail") {
-            _selectedVersionId = null;
-            refresh();
           }
         } else {
+          if (!vid) return;
           _selectedVersionId = vid;
           var idx = Number(el.dataset.idx);
           if (!isNaN(idx)) {
