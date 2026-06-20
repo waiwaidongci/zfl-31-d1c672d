@@ -154,54 +154,108 @@ const CompareCalc = (function() {
     };
   }
 
-  function computeCellDifferences(schemeA, schemeB) {
-    if (schemeA.cols !== schemeB.cols || schemeA.rows !== schemeB.rows) {
-      return {
-        canCompare: false,
-        message: `尺寸不一致（${schemeA.cols}×${schemeA.rows} vs ${schemeB.cols}×${schemeB.rows}），无法直接逐格比较。`,
-        differences: [],
-        diffCount: 0,
-        sameCount: 0
-      };
+  function computeAlignmentOffset(schemeA, schemeB, alignment) {
+    const mode = alignment && alignment.mode ? alignment.mode : 'top-left';
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (mode === 'center') {
+      offsetX = Math.floor((schemeA.cols - schemeB.cols) / 2);
+      offsetY = Math.floor((schemeA.rows - schemeB.rows) / 2);
+    } else if (mode === 'custom' && alignment) {
+      offsetX = alignment.offsetX != null ? alignment.offsetX : 0;
+      offsetY = alignment.offsetY != null ? alignment.offsetY : 0;
     }
 
-    const cols = schemeA.cols;
-    const rows = schemeA.rows;
+    return { mode, offsetX, offsetY };
+  }
+
+  function computeCellDifferences(schemeA, schemeB, alignment) {
+    const sameSize = schemeA.cols === schemeB.cols && schemeA.rows === schemeB.rows;
+    const offset = computeAlignmentOffset(schemeA, schemeB, alignment);
+
     const differences = [];
-    let diffCount = 0;
+    let changedCount = 0;
+    let missingCount = 0;
+    let addedCount = 0;
     let sameCount = 0;
 
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        const idx = y * cols + x;
-        const cellA = schemeA.cells[idx];
-        const cellB = schemeB.cells[idx];
+    for (let y = 0; y < schemeA.rows; y++) {
+      for (let x = 0; x < schemeA.cols; x++) {
+        const idxA = y * schemeA.cols + x;
+        const cellA = schemeA.cells[idxA];
+        const bx = x - offset.offsetX;
+        const by = y - offset.offsetY;
 
-        if (cellA !== cellB) {
-          differences.push({
-            x, y, idx,
-            cellA,
-            cellB
-          });
-          diffCount++;
+        if (bx >= 0 && bx < schemeB.cols && by >= 0 && by < schemeB.rows) {
+          const idxB = by * schemeB.cols + bx;
+          const cellB = schemeB.cells[idxB];
+          if (cellA !== cellB) {
+            differences.push({
+              type: 'changed',
+              x, y,
+              idxA, idxB,
+              cellA, cellB
+            });
+            changedCount++;
+          } else {
+            sameCount++;
+          }
         } else {
-          sameCount++;
+          differences.push({
+            type: 'missing',
+            x, y,
+            idxA,
+            cellA
+          });
+          missingCount++;
         }
       }
     }
 
+    for (let by = 0; by < schemeB.rows; by++) {
+      for (let bx = 0; bx < schemeB.cols; bx++) {
+        const ax = bx + offset.offsetX;
+        const ay = by + offset.offsetY;
+        if (ax < 0 || ax >= schemeA.cols || ay < 0 || ay >= schemeA.rows) {
+          const idxB = by * schemeB.cols + bx;
+          const cellB = schemeB.cells[idxB];
+          differences.push({
+            type: 'added',
+            x: ax, y: ay,
+            bx, by,
+            idxB,
+            cellB
+          });
+          addedCount++;
+        }
+      }
+    }
+
+    const diffCount = changedCount + missingCount + addedCount;
+    const totalCount = schemeA.cols * schemeA.rows + addedCount;
+    const overlapCount = sameCount + changedCount;
+
     return {
       canCompare: true,
-      message: diffCount === 0 ? '两个方案完全相同' : `共 ${diffCount} 格存在差异`,
+      sameSize,
+      alignment: offset,
+      message: sameSize
+        ? (diffCount === 0 ? '两个方案完全相同' : `共 ${changedCount} 格颜色变化`)
+        : `重叠区域 ${sameCount} 格相同、${changedCount} 格颜色变化，A 独有 ${missingCount} 格，B 新增 ${addedCount} 格`,
       differences,
+      changedCount,
+      missingCount,
+      addedCount,
       diffCount,
       sameCount,
-      totalCount: cols * rows,
-      diffRatio: (diffCount / (cols * rows) * 100).toFixed(1)
+      overlapCount,
+      totalCount,
+      diffRatio: overlapCount > 0 ? (changedCount / overlapCount * 100).toFixed(1) : '0.0'
     };
   }
 
-  function compareAll(schemeA, schemeB, threads) {
+  function compareAll(schemeA, schemeB, threads, alignment) {
     const firstThreadId = ThreadStore.getFirstId();
 
     return {
@@ -211,7 +265,7 @@ const CompareCalc = (function() {
       filledCells: compareFilledCells(schemeA, schemeB, firstThreadId),
       colorUsage: compareColorUsage(schemeA, schemeB, threads),
       riskRows: compareRiskRows(schemeA, schemeB),
-      cellDiff: computeCellDifferences(schemeA, schemeB)
+      cellDiff: computeCellDifferences(schemeA, schemeB, alignment)
     };
   }
 
@@ -220,6 +274,7 @@ const CompareCalc = (function() {
     compareFilledCells,
     compareColorUsage,
     compareRiskRows,
+    computeAlignmentOffset,
     computeCellDifferences,
     compareAll,
     getRiskRows,
