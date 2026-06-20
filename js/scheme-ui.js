@@ -158,8 +158,12 @@ const SchemeUI = (function() {
           ? "只剩一个方案，删除后将自动创建新的默认方案。确定删除吗？"
           : '确定删除方案"' + (sch ? sch.name : "") + '"吗？';
         if (confirm(msg)) {
+          var wasActive = SchemeStore.getActiveId() === id;
           SchemeStore.remove(id);
-          renderAll();
+          if (wasActive) {
+            _syncActiveSchemeView();
+          }
+          refreshAll();
         }
       });
 
@@ -248,15 +252,19 @@ const SchemeUI = (function() {
 
   function switchScheme(id) {
     if (SchemeStore.setActive(id)) {
-      document.querySelector("#cols").value = AppState.cols;
-      document.querySelector("#rows").value = AppState.rows;
-      if (typeof ProcessView !== "undefined" && ProcessView.isProcessView()) {
-        ProcessView.switchToCanvas();
-      }
-      SelectionState.reset();
-      GridInteraction.setGridSize(AppState.cols, AppState.rows);
+      _syncActiveSchemeView();
       renderAll();
     }
+  }
+
+  function _syncActiveSchemeView() {
+    document.querySelector("#cols").value = AppState.cols;
+    document.querySelector("#rows").value = AppState.rows;
+    if (typeof ProcessView !== "undefined" && ProcessView.isProcessView()) {
+      ProcessView.switchToCanvas();
+    }
+    SelectionState.reset();
+    GridInteraction.setGridSize(AppState.cols, AppState.rows);
   }
 
   function renderAll() {
