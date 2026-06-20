@@ -32,6 +32,12 @@ const SchemeStore = (function() {
       if (!_schemes[id].versions) {
         _schemes[id].versions = [];
       }
+      if (typeof _schemes[id].favorite !== "boolean") {
+        _schemes[id].favorite = false;
+      }
+      if (!Array.isArray(_schemes[id].tags)) {
+        _schemes[id].tags = [];
+      }
     });
 
     if (Object.keys(_schemes).length === 0) {
@@ -100,6 +106,8 @@ const SchemeStore = (function() {
       undo: [],
       redo: [],
       versions: [],
+      favorite: false,
+      tags: [],
       createdAt: now,
       updatedAt: now
     };
@@ -168,6 +176,78 @@ const SchemeStore = (function() {
     return base + " " + i;
   }
 
+  function toggleFavorite(id) {
+    if (!_schemes[id]) return false;
+    _schemes[id].favorite = !_schemes[id].favorite;
+    _schemes[id].updatedAt = Date.now();
+    _persist();
+    return _schemes[id].favorite;
+  }
+
+  function addTag(id, tag) {
+    if (!_schemes[id]) return false;
+    tag = tag.trim();
+    if (!tag) return false;
+    if (_schemes[id].tags.indexOf(tag) === -1) {
+      _schemes[id].tags.push(tag);
+      _schemes[id].updatedAt = Date.now();
+      _persist();
+    }
+    return true;
+  }
+
+  function removeTag(id, tag) {
+    if (!_schemes[id]) return false;
+    var idx = _schemes[id].tags.indexOf(tag);
+    if (idx > -1) {
+      _schemes[id].tags.splice(idx, 1);
+      _schemes[id].updatedAt = Date.now();
+      _persist();
+    }
+    return true;
+  }
+
+  function setTags(id, tags) {
+    if (!_schemes[id]) return false;
+    _schemes[id].tags = (tags || []).map(function(t) { return t.trim(); }).filter(function(t) { return t; });
+    _schemes[id].updatedAt = Date.now();
+    _persist();
+    return true;
+  }
+
+  function getAllTags() {
+    var tagSet = {};
+    Object.values(_schemes).forEach(function(s) {
+      (s.tags || []).forEach(function(t) {
+        tagSet[t] = true;
+      });
+    });
+    return Object.keys(tagSet).sort();
+  }
+
+  function getFiltered(options) {
+    options = options || {};
+    var list = Object.values(_schemes);
+
+    if (options.tag) {
+      list = list.filter(function(s) {
+        return (s.tags || []).indexOf(options.tag) > -1;
+      });
+    }
+
+    if (options.favoriteFirst) {
+      list.sort(function(a, b) {
+        if (a.favorite && !b.favorite) return -1;
+        if (!a.favorite && b.favorite) return 1;
+        return b.updatedAt - a.updatedAt;
+      });
+    } else {
+      list.sort(function(a, b) { return b.updatedAt - a.updatedAt; });
+    }
+
+    return list;
+  }
+
   return {
     _schemes: _schemes,
     load: load,
@@ -183,6 +263,12 @@ const SchemeStore = (function() {
     rename: rename,
     saveActive: saveActive,
     nextName: nextName,
+    toggleFavorite: toggleFavorite,
+    addTag: addTag,
+    removeTag: removeTag,
+    setTags: setTags,
+    getAllTags: getAllTags,
+    getFiltered: getFiltered,
     uid: uid,
     defaultCells: defaultCells,
     get _schemes() { return _schemes; }

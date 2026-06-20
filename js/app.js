@@ -8,6 +8,7 @@ const App = (function() {
   var _previewEl = null;
   var _riskEl = null;
   var _schemeListEl = null;
+  var _schemeFilterEl = null;
   var _colsInput = null;
   var _rowsInput = null;
   var _currentWorkspace = "edit";
@@ -32,6 +33,7 @@ const App = (function() {
     _previewEl = document.querySelector("#preview");
     _riskEl = document.querySelector("#risk");
     _schemeListEl = document.querySelector("#schemeList");
+    _schemeFilterEl = document.querySelector("#schemeFilter");
     _colsInput = document.querySelector("#cols");
     _rowsInput = document.querySelector("#rows");
   }
@@ -51,7 +53,7 @@ const App = (function() {
       previewEl: _previewEl,
       riskEl: _riskEl
     });
-    SchemeUI.init({ listEl: _schemeListEl });
+    SchemeUI.init({ listEl: _schemeListEl, filterEl: _schemeFilterEl });
   }
 
   function _initInteractions() {
@@ -210,7 +212,7 @@ const App = (function() {
 
   function _renderInitial() {
     GridRender.render();
-    SchemeUI.renderSchemeList();
+    SchemeUI.renderAll();
   }
 
   function _handleNewGrid() {

@@ -67,6 +67,164 @@ label { display: block; margin: 9px 0 5px; color: #76695e; font-size: 13px; }
 }
 .empty-hint { color: #a89988; font-size: 13px; text-align: center; padding: 16px 8px; font-style: italic; }
 
+.scheme-filter {
+  margin-bottom: 8px;
+}
+
+.scheme-filter-bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filter-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid #d9cdbc;
+  background: #fff;
+  color: #71675c;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.filter-btn:hover {
+  border-color: #a89377;
+  background: #fff8ec;
+}
+
+.filter-btn.active {
+  background: #8d3e37;
+  border-color: #8d3e37;
+  color: #fff;
+}
+
+.filter-btn.clear-btn {
+  background: #f5efe3;
+  border-color: #d9cdbc;
+  color: #8d3e37;
+}
+
+.filter-btn.clear-btn:hover {
+  background: #ede2cf;
+}
+
+.tag-filter-wrapper {
+  flex: 1;
+  min-width: 80px;
+}
+
+.tag-filter-select {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 12px;
+  border: 1px solid #d9cdbc;
+  border-radius: 6px;
+  background: #fff;
+  color: #71675c;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.fav-toggle {
+  background: transparent;
+  border: 0;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  color: #b8a990;
+  flex-shrink: 0;
+  transition: transform 0.15s, color 0.15s;
+}
+
+.fav-toggle:hover {
+  transform: scale(1.2);
+}
+
+.fav-toggle.favorited {
+  color: #d6a437;
+}
+
+.scheme-item.fav-active {
+  border-left: 4px solid #d6a437;
+}
+
+.scheme-item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.scheme-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  align-items: center;
+}
+
+.scheme-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  background: #e8dfd0;
+  color: #5a4e42;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.scheme-tag:hover {
+  background: #d9cdbc;
+}
+
+.tag-remove {
+  font-size: 13px;
+  line-height: 1;
+  color: #8a7c6c;
+  cursor: pointer;
+  padding-left: 2px;
+  opacity: 0.6;
+}
+
+.tag-remove:hover {
+  opacity: 1;
+  color: #a03a2e;
+}
+
+.tag-add-btn {
+  padding: 2px 8px;
+  font-size: 11px;
+  background: transparent;
+  border: 1px dashed #b8a990;
+  color: #8a7c6c;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.tag-add-btn:hover {
+  background: #f5efe3;
+  border-color: #8a7c6c;
+  color: #5a4e42;
+}
+
+.tag-input {
+  width: 100px;
+  padding: 3px 8px;
+  font-size: 11px;
+  border: 1px solid #8d3e37;
+  border-radius: 10px;
+  outline: none;
+}
+
 .template-tabs {
   display: flex;
   gap: 4px;
