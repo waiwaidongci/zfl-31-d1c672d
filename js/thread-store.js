@@ -307,25 +307,122 @@ const ThreadStore = (function() {
     _persist();
   }
 
+  function resolveAndImportThreads(fileThreads, threadConflicts, conflictResolutions) {
+    const idMap = {};
+    const nonConflictFileThreads = [];
+
+    const conflictMap = {};
+    (threadConflicts || []).forEach(c => {
+      if (c && c.fileThread && c.fileThread.id) {
+        conflictMap[c.fileThread.id] = c;
+      }
+    });
+
+    const resolutionMap = {};
+    (conflictResolutions || []).forEach(r => {
+      if (r && r.fileThreadId) {
+        resolutionMap[r.fileThreadId] = r;
+      }
+    });
+
+    fileThreads.forEach(ft => {
+      if (!ft || !ft.id) return;
+      const conflict = conflictMap[ft.id];
+      const resolution = resolutionMap[ft.id];
+
+      if (!conflict || !resolution) {
+        nonConflictFileThreads.push(ft);
+        idMap[ft.id] = ft.id;
+        return;
+      }
+
+      const res = resolution.resolution || "use_file";
+      const currentThread = conflict.currentThread;
+
+      if (res === "keep_current" && currentThread) {
+        idMap[ft.id] = currentThread.id;
+      } else if (res === "use_file" && currentThread) {
+        const idx = _threads.findIndex(t => t.id === currentThread.id);
+        if (idx !== -1) {
+          _threads[idx] = {
+            ..._threads[idx],
+            name: ft.name || _threads[idx].name,
+            color: ft.color || _threads[idx].color,
+            note: ft.note != null ? ft.note : _threads[idx].note
+          };
+        }
+        idMap[ft.id] = currentThread.id;
+      } else if (res === "new_mapping") {
+        const newId = ThreadModel && typeof ThreadModel.createThread === "function"
+          ? ThreadModel.createThread({ name: ft.name, color: ft.color }).id
+          : ("t_imported_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6));
+
+        let maxOrder = _threads.length > 0
+          ? Math.max(..._threads.map(t => t.order))
+          : -1;
+        maxOrder++;
+
+        _threads.push({
+          ...ThreadModel.createThread({
+            ...ft,
+            id: newId,
+            order: maxOrder
+          })
+        });
+
+        idMap[ft.id] = newId;
+      } else if (currentThread) {
+        idMap[ft.id] = currentThread.id;
+      } else {
+        nonConflictFileThreads.push(ft);
+        idMap[ft.id] = ft.id;
+      }
+    });
+
+    if (nonConflictFileThreads.length > 0) {
+      const existingIds = new Set(_threads.map(t => t.id));
+      let maxOrder = _threads.length > 0
+        ? Math.max(..._threads.map(t => t.order))
+        : -1;
+
+      nonConflictFileThreads.forEach(ft => {
+        if (!existingIds.has(ft.id)) {
+          maxOrder++;
+          _threads.push({
+            ...ThreadModel.createThread(ft),
+            order: maxOrder
+          });
+          existingIds.add(ft.id);
+        }
+      });
+    }
+
+    _sortAndNormalize();
+    _persist();
+
+    return idMap;
+  }
+
   function toJSON() {
     return ThreadModel.sortByOrder(_threads);
   }
 
   return {
-    load,
-    subscribe,
-    getAll,
-    getById,
-    getColorById,
-    getFirstId,
-    add,
-    update,
-    remove,
-    reorder,
-    isUsedInAnyScheme,
-    getUsageInfo,
-    getUsedCountInScheme,
-    importThreads,
-    toJSON
+    load: load,
+    subscribe: subscribe,
+    getAll: getAll,
+    getById: getById,
+    getColorById: getColorById,
+    getFirstId: getFirstId,
+    add: add,
+    update: update,
+    remove: remove,
+    reorder: reorder,
+    isUsedInAnyScheme: isUsedInAnyScheme,
+    getUsageInfo: getUsageInfo,
+    getUsedCountInScheme: getUsedCountInScheme,
+    importThreads: importThreads,
+    resolveAndImportThreads: resolveAndImportThreads,
+    toJSON: toJSON
   };
 })();

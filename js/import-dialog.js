@@ -6,6 +6,8 @@ const ImportDialog = (function() {
   let validationResult = null;
   let onImportCallback = null;
   let fileInputEl = null;
+  let conflictResolutions = null;
+  let currentThreadsSnapshot = null;
 
   function init(options = {}) {
     createDialog();
@@ -107,15 +109,28 @@ const ImportDialog = (function() {
         ? SchemeStore.getActive()
         : null;
 
+      currentThreadsSnapshot = ThreadStore && ThreadStore.getAll ? ThreadStore.getAll() : [];
+
       const threads = parsedData.threads && parsedData.threads.length > 0
         ? parsedData.threads
-        : (ThreadStore && ThreadStore.getAll ? ThreadStore.getAll() : []);
+        : currentThreadsSnapshot;
 
       validationResult = ImportValidator.validate(parsedData, {
         currentScheme,
         threads,
-        schemeStore: typeof SchemeStore !== "undefined" ? SchemeStore : null
+        schemeStore: typeof SchemeStore !== "undefined" ? SchemeStore : null,
+        currentThreads: currentThreadsSnapshot
       });
+
+      if (validationResult.threadConflicts && validationResult.threadConflicts.length > 0) {
+        conflictResolutions = validationResult.threadConflicts.map(c => ({
+          fileThreadId: c.fileThread.id,
+          resolution: "use_file",
+          customNewId: null
+        }));
+      } else {
+        conflictResolutions = null;
+      }
 
       renderPreview();
     } catch (err) {
@@ -203,6 +218,11 @@ const ImportDialog = (function() {
 
     const hasSizeMismatch = validationResult.warnings.some(w => w.code === "size_differs_from_current");
     const hasThreadsData = threads && threads.length > 0;
+    const hasThreadConflicts = validationResult.hasThreadConflicts && validationResult.threadConflicts.length > 0;
+
+    const threadConflictsHtml = hasThreadConflicts
+      ? renderThreadConflicts(validationResult.threadConflicts, threadList)
+      : "";
 
     dialogEl.innerHTML = `
       <div style="padding: 20px 24px;">
@@ -231,6 +251,7 @@ const ImportDialog = (function() {
               <span>用色：${colorStats.filter(s => s.count > 0).length} 种颜色</span>
             </div>
             ${hasThreadsData ? '<div style="color: #3c5482; font-size: 12px; margin-top: 8px;">📎 包含色线元数据</div>' : ''}
+            ${hasThreadConflicts ? `<div style="color: #a03a2e; font-size: 12px; margin-top: 6px;">⚠️ 检测到 ${validationResult.threadConflicts.length} 处色线冲突</div>` : ''}
           </div>
         </div>
 
@@ -246,6 +267,8 @@ const ImportDialog = (function() {
             `).join("")}
           </div>
         </div>
+
+        ${threadConflictsHtml}
 
         <div style="margin-bottom: 16px;">
           <h4 style="margin: 0 0 8px; font-size: 14px;">导入方式</h4>
@@ -289,6 +312,10 @@ const ImportDialog = (function() {
     dialogEl.querySelector("#importCloseBtn").addEventListener("click", close);
     dialogEl.querySelector("#importBackBtn").addEventListener("click", renderFilePicker);
     dialogEl.querySelector("#importConfirmBtn").addEventListener("click", handleConfirm);
+
+    if (hasThreadConflicts) {
+      bindConflictResolutionEvents();
+    }
   }
 
   function renderPreviewGrid(cells, cols, rows, threads) {
@@ -352,13 +379,19 @@ const ImportDialog = (function() {
     try {
       let result;
 
+      const importOptions = {
+        rename: true,
+        threadConflicts: validationResult.threadConflicts || [],
+        conflictResolutions: conflictResolutions || [],
+        currentThreadsSnapshot: currentThreadsSnapshot
+      };
+
       if (mode === "overwrite") {
-        result = ImportWriter.importAsOverwrite(parsedData, SchemeStore, {
-          rename: true
-        });
+        result = ImportWriter.importAsOverwrite(parsedData, SchemeStore, importOptions);
       } else {
         result = ImportWriter.importAsNew(parsedData, SchemeStore, {
-          setActive: false
+          setActive: false,
+          ...importOptions
         });
       }
 
@@ -393,6 +426,97 @@ const ImportDialog = (function() {
       toast.style.opacity = "0";
       setTimeout(() => toast.remove(), 300);
     }, 1800);
+  }
+
+  function renderThreadConflicts(conflicts, threadList) {
+    const items = conflicts.map((conflict, idx) => {
+      const ft = conflict.fileThread;
+      const ct = conflict.currentThread;
+      const types = conflict.types;
+      const res = conflictResolutions[idx];
+      const currentRes = res ? res.resolution : "use_file";
+
+      const typeBadges = types.map(t => {
+        if (t === "id") return '<span style="background:#ffe0e0;color:#a03a2e;padding:2px 6px;border-radius:4px;font-size:11px;">ID冲突</span>';
+        if (t === "name") return '<span style="background:#fff3cd;color:#8a6d2b;padding:2px 6px;border-radius:4px;font-size:11px;">名称冲突</span>';
+        if (t === "color") return '<span style="background:#e0e7ff;color:#3c5482;padding:2px 6px;border-radius:4px;font-size:11px;">颜色冲突</span>';
+        return "";
+      }).join(" ");
+
+      const fileColorBadge = `<span style="display:inline-block;width:18px;height:18px;border-radius:3px;background:${ft.color || '#ccc'};vertical-align:middle;border:1px solid #d9cdbc;"></span>`;
+      const currColorBadge = ct
+        ? `<span style="display:inline-block;width:18px;height:18px;border-radius:3px;background:${ct.color || '#ccc'};vertical-align:middle;border:1px solid #d9cdbc;"></span>`
+        : "";
+
+      return `
+        <div style="border:1px solid #f0c4be;border-radius:8px;padding:12px;margin-bottom:10px;background:#fffaf2;">
+          <div style="margin-bottom:8px;">${typeBadges}</div>
+          <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin-bottom:10px;">
+            <div style="background:#f5ebe0;padding:8px;border-radius:6px;">
+              <div style="font-size:11px;color:#76695e;margin-bottom:4px;">📄 文件色线</div>
+              <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;">${fileColorBadge} ${escapeHtml(ft.name || "未命名")}</div>
+              <div style="font-size:11px;color:#a89988;margin-top:2px;font-family:monospace;">${escapeHtml(ft.id || "")}</div>
+              <div style="font-size:11px;color:#a89988;font-family:monospace;">${escapeHtml(ft.color || "")}</div>
+            </div>
+            <div style="font-size:18px;color:#a03a2e;">⇄</div>
+            <div style="background:#eef2fb;padding:8px;border-radius:6px;">
+              <div style="font-size:11px;color:#76695e;margin-bottom:4px;">💾 当前色线</div>
+              <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;">${currColorBadge} ${escapeHtml(ct ? (ct.name || "未命名") : "-")}</div>
+              <div style="font-size:11px;color:#a89988;margin-top:2px;font-family:monospace;">${escapeHtml(ct ? (ct.id || "") : "-")}</div>
+              <div style="font-size:11px;color:#a89988;font-family:monospace;">${escapeHtml(ct ? (ct.color || "") : "-")}</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <label style="display:flex;align-items:center;gap:8px;padding:8px;background:${currentRes === 'keep_current' ? '#eef2fb' : '#fff'};border:2px solid ${currentRes === 'keep_current' ? '#3c5482' : '#d9cdbc'};border-radius:6px;cursor:pointer;">
+              <input type="radio" name="conflict_${idx}" value="keep_current" ${currentRes === 'keep_current' ? 'checked' : ''} data-idx="${idx}" data-res="keep_current">
+              <div style="flex:1;">
+                <div style="font-weight:600;font-size:13px;">保留当前色线</div>
+                <div style="font-size:11px;color:#76695e;">保持当前色线库不变，文件中该色线对应格子将替换为当前色线</div>
+              </div>
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;padding:8px;background:${currentRes === 'use_file' ? '#fdf0ee' : '#fff'};border:2px solid ${currentRes === 'use_file' ? '#a03a2e' : '#d9cdbc'};border-radius:6px;cursor:pointer;">
+              <input type="radio" name="conflict_${idx}" value="use_file" ${currentRes === 'use_file' ? 'checked' : ''} data-idx="${idx}" data-res="use_file">
+              <div style="flex:1;">
+                <div style="font-weight:600;font-size:13px;">使用文件色线</div>
+                <div style="font-size:11px;color:#76695e;">用文件色线覆盖当前色线的属性（名称/颜色），原有方案中该色线将同步变化</div>
+              </div>
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;padding:8px;background:${currentRes === 'new_mapping' ? '#e8f5e9' : '#fff'};border:2px solid ${currentRes === 'new_mapping' ? '#3a7d44' : '#d9cdbc'};border-radius:6px;cursor:pointer;">
+              <input type="radio" name="conflict_${idx}" value="new_mapping" ${currentRes === 'new_mapping' ? 'checked' : ''} data-idx="${idx}" data-res="new_mapping">
+              <div style="flex:1;">
+                <div style="font-weight:600;font-size:13px;">建立新色线</div>
+                <div style="font-size:11px;color:#76695e;">将文件色线作为新色线添加到色线库，保留当前色线不变</div>
+              </div>
+            </label>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    return `
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <h4 style="margin:0;font-size:14px;">色线冲突处理</h4>
+          <span style="background:#fdf0ee;color:#a03a2e;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">${conflicts.length} 处冲突</span>
+        </div>
+        <p style="margin:0 0 10px;color:#76695e;font-size:12px;">文件中的色线与当前色线库存在冲突，请为每处冲突选择处理方式：</p>
+        ${items}
+      </div>
+    `;
+  }
+
+  function bindConflictResolutionEvents() {
+    const radios = dialogEl.querySelectorAll('input[name^="conflict_"]');
+    radios.forEach(radio => {
+      radio.addEventListener("change", (e) => {
+        const idx = Number(e.target.dataset.idx);
+        const res = e.target.dataset.res;
+        if (conflictResolutions && conflictResolutions[idx]) {
+          conflictResolutions[idx].resolution = res;
+        }
+        renderPreview();
+      });
+    });
   }
 
   function normalizePreviewCells(cells, threads) {

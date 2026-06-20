@@ -14,14 +14,23 @@ const ImportWriter = (function() {
     const finalName = options.name || schemeStore.nextName(name || "导入方案");
 
     const importedThreads = threads && Array.isArray(threads) ? threads : null;
-    if (importedThreads && importedThreads.length > 0 && ThreadStore && ThreadStore.importThreads) {
-      ThreadStore.importThreads(importedThreads, "merge");
+    const threadConflicts = options.threadConflicts || [];
+    const conflictResolutions = options.conflictResolutions || [];
+    const hasConflictInfo = threadConflicts.length > 0 && conflictResolutions.length > 0;
+    const idMap = {};
+
+    if (importedThreads && importedThreads.length > 0 && ThreadStore) {
+      if (hasConflictInfo && ThreadStore.resolveAndImportThreads) {
+        Object.assign(idMap, ThreadStore.resolveAndImportThreads(importedThreads, threadConflicts, conflictResolutions));
+      } else if (ThreadStore.importThreads) {
+        ThreadStore.importThreads(importedThreads, "merge");
+      }
     }
 
     const newScheme = schemeStore.create(finalName, cols, rows);
 
     const threadList = ThreadStore && ThreadStore.getAll ? ThreadStore.getAll() : [];
-    const normalizedCells = normalizeCells(cells, cols, rows, threadList, importedThreads);
+    const normalizedCells = normalizeCells(cells, cols, rows, threadList, importedThreads, idMap);
     const firstThreadId = threadList.length > 0 ? threadList[0].id : null;
 
     const updateData = {
@@ -38,7 +47,10 @@ const ImportWriter = (function() {
       }).map(function(v) {
         const normalizedV = Object.assign({}, v);
         if (Array.isArray(v.cells)) {
-          normalizedV.cells = normalizeCells(v.cells, v.cols || cols, v.rows || rows, threadList, importedThreads);
+          normalizedV.cells = normalizeCells(v.cells, v.cols || cols, v.rows || rows, threadList, importedThreads, idMap);
+        }
+        if (Array.isArray(v.colorStats)) {
+          normalizedV.colorStats = remapColorStats(v.colorStats, idMap);
         }
         return normalizedV;
       });
@@ -64,8 +76,17 @@ const ImportWriter = (function() {
     }
 
     const importedThreads = threads && Array.isArray(threads) ? threads : null;
-    if (importedThreads && importedThreads.length > 0 && ThreadStore && ThreadStore.importThreads) {
-      ThreadStore.importThreads(importedThreads, "merge");
+    const threadConflicts = options.threadConflicts || [];
+    const conflictResolutions = options.conflictResolutions || [];
+    const hasConflictInfo = threadConflicts.length > 0 && conflictResolutions.length > 0;
+    const idMap = {};
+
+    if (importedThreads && importedThreads.length > 0 && ThreadStore) {
+      if (hasConflictInfo && ThreadStore.resolveAndImportThreads) {
+        Object.assign(idMap, ThreadStore.resolveAndImportThreads(importedThreads, threadConflicts, conflictResolutions));
+      } else if (ThreadStore.importThreads) {
+        ThreadStore.importThreads(importedThreads, "merge");
+      }
     }
 
     const activeId = schemeStore.getActiveId();
@@ -74,7 +95,7 @@ const ImportWriter = (function() {
     }
 
     const threadList = ThreadStore && ThreadStore.getAll ? ThreadStore.getAll() : [];
-    const normalizedCells = normalizeCells(cells, cols, rows, threadList, importedThreads);
+    const normalizedCells = normalizeCells(cells, cols, rows, threadList, importedThreads, idMap);
     const firstThreadId = threadList.length > 0 ? threadList[0].id : null;
 
     const updateData = {
@@ -97,7 +118,10 @@ const ImportWriter = (function() {
       }).map(function(v) {
         const normalizedV = Object.assign({}, v);
         if (Array.isArray(v.cells)) {
-          normalizedV.cells = normalizeCells(v.cells, v.cols || cols, v.rows || rows, threadList, importedThreads);
+          normalizedV.cells = normalizeCells(v.cells, v.cols || cols, v.rows || rows, threadList, importedThreads, idMap);
+        }
+        if (Array.isArray(v.colorStats)) {
+          normalizedV.colorStats = remapColorStats(v.colorStats, idMap);
         }
         return normalizedV;
       });
@@ -117,7 +141,7 @@ const ImportWriter = (function() {
     return schemeStore.nextName(name);
   }
 
-  function normalizeCells(cells, cols, rows, currentThreads, importedThreads) {
+  function normalizeCells(cells, cols, rows, currentThreads, importedThreads, idMap) {
     const total = cols * rows;
     const result = [];
     const hasLegacyFormat = cells.some(v => typeof v === "number");
@@ -132,7 +156,12 @@ const ImportWriter = (function() {
         if (i < cells.length) {
           const v = cells[i];
           if (typeof v === "number" && Number.isInteger(v) && v >= 0 && v < sortedThreads.length) {
-            result.push(sortedThreads[v].id);
+            const fileThreadId = sortedThreads[v].id;
+            if (idMap && idMap[fileThreadId]) {
+              result.push(idMap[fileThreadId]);
+            } else {
+              result.push(fileThreadId);
+            }
           } else {
             result.push(firstThreadId);
           }
@@ -150,7 +179,13 @@ const ImportWriter = (function() {
         if (i < cells.length) {
           const v = cells[i];
           if (typeof v === "string" && threadIds.has(v)) {
-            result.push(v);
+            if (idMap && idMap[v]) {
+              result.push(idMap[v]);
+            } else {
+              result.push(v);
+            }
+          } else if (typeof v === "string" && idMap && idMap[v]) {
+            result.push(idMap[v]);
           } else {
             result.push(firstThreadId);
           }
@@ -161,6 +196,30 @@ const ImportWriter = (function() {
     }
 
     return result;
+  }
+
+  function remapColorStats(colorStats, idMap) {
+    if (!Array.isArray(colorStats) || !idMap) {
+      return colorStats;
+    }
+    const currentThreads = ThreadStore && ThreadStore.getAll ? ThreadStore.getAll() : [];
+    const threadById = {};
+    currentThreads.forEach(t => { threadById[t.id] = t; });
+
+    return colorStats.map(s => {
+      const newId = idMap[s.id] || s.id;
+      const t = threadById[newId];
+      if (t) {
+        return {
+          ...s,
+          id: newId,
+          name: t.name || s.name,
+          color: t.color || s.color,
+          note: t.note != null ? t.note : s.note
+        };
+      }
+      return { ...s, id: newId };
+    });
   }
 
   function importAsNew(parsedData, schemeStore, options = {}) {

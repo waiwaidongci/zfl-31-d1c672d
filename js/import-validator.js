@@ -6,7 +6,7 @@ const ImportValidator = (function() {
 
   function validate(parsedData, options = {}) {
     const results = [];
-    const { currentScheme, threads, schemeStore } = options;
+    const { currentScheme, threads, schemeStore, currentThreads } = options;
 
     results.push(...validateRequiredFields(parsedData));
 
@@ -18,6 +18,10 @@ const ImportValidator = (function() {
     if (parsedData.threads) {
       results.push(...validateThreads(parsedData.threads));
     }
+
+    const threadConflicts = parsedData.threads && currentThreads && currentThreads.length > 0
+      ? detectThreadConflicts(parsedData.threads, currentThreads)
+      : [];
 
     if (currentScheme) {
       results.push(...compareWithCurrentScheme(parsedData, currentScheme));
@@ -38,7 +42,9 @@ const ImportValidator = (function() {
       errors,
       warnings,
       infos,
-      all: results
+      all: results,
+      threadConflicts: threadConflicts,
+      hasThreadConflicts: threadConflicts.length > 0
     };
   }
 
@@ -297,6 +303,79 @@ const ImportValidator = (function() {
     return results;
   }
 
+  function detectThreadConflicts(fileThreads, currentThreads) {
+    const conflicts = [];
+    const normalizeColor = (c) => c ? c.toLowerCase().trim() : "";
+
+    const currentById = {};
+    const currentByName = {};
+    const currentByColor = {};
+
+    currentThreads.forEach(t => {
+      currentById[t.id] = t;
+      const nKey = (t.name || "").toLowerCase().trim();
+      if (nKey) currentByName[nKey] = t;
+      const cKey = normalizeColor(t.color);
+      if (cKey) currentByColor[cKey] = t;
+    });
+
+    fileThreads.forEach(ft => {
+      const conflict = {
+        fileThread: { ...ft },
+        types: [],
+        currentThread: null,
+        suggestion: null
+      };
+
+      const byId = currentById[ft.id];
+      if (byId) {
+        const idMatch = byId.id === ft.id;
+        const nameDiff = (byId.name || "").toLowerCase().trim() !== (ft.name || "").toLowerCase().trim();
+        const colorDiff = normalizeColor(byId.color) !== normalizeColor(ft.color);
+        if (idMatch && (nameDiff || colorDiff)) {
+          conflict.types.push("id");
+          conflict.currentThread = conflict.currentThread || { ...byId };
+        } else if (idMatch && !nameDiff && !colorDiff) {
+          return;
+        }
+      }
+
+      const nKey = (ft.name || "").toLowerCase().trim();
+      const byName = nKey ? currentByName[nKey] : null;
+      if (byName && byName.id !== ft.id && (!conflict.currentThread || conflict.currentThread.id !== byName.id)) {
+        conflict.types.push("name");
+        conflict.currentThread = conflict.currentThread || { ...byName };
+      } else if (byName && byName.id !== ft.id && conflict.currentThread && conflict.currentThread.id !== byName.id) {
+        conflict.types.push("name");
+      }
+
+      const cKey = normalizeColor(ft.color);
+      const byColor = cKey ? currentByColor[cKey] : null;
+      if (byColor && byColor.id !== ft.id) {
+        if (!conflict.currentThread) {
+          conflict.currentThread = { ...byColor };
+          conflict.types.push("color");
+        } else if (conflict.currentThread.id !== byColor.id) {
+          if (!conflict.altCurrentThreads) conflict.altCurrentThreads = [];
+          conflict.altCurrentThreads.push({ ...byColor, conflictType: "color" });
+        }
+      }
+
+      if (conflict.types.length > 0) {
+        const typeLabels = conflict.types.map(t => {
+          if (t === "id") return "ID相同";
+          if (t === "name") return "名称相同";
+          if (t === "color") return "颜色相同";
+          return t;
+        }).join("、");
+        conflict.description = typeLabels + "，但属性不完全一致";
+        conflicts.push(conflict);
+      }
+    });
+
+    return conflicts;
+  }
+
   function formatMessages(validationResult) {
     const errors = validationResult.errors.map(e => e.message);
     const warnings = validationResult.warnings.map(w => w.message);
@@ -307,6 +386,7 @@ const ImportValidator = (function() {
   return {
     validate,
     formatMessages,
+    detectThreadConflicts,
     VALIDATION_ERROR,
     VALIDATION_WARNING,
     VALIDATION_INFO
