@@ -42,6 +42,9 @@ const App = (function() {
     ThreadStore.load();
     StorageMigration.migrateAll();
     SchemeStore.load();
+    if (typeof RiskConfig !== 'undefined') {
+      RiskConfig.load();
+    }
     _colsInput.value = AppState.cols;
     _rowsInput.value = AppState.rows;
   }
@@ -164,6 +167,10 @@ const App = (function() {
           }
         }
       });
+    }
+
+    if (typeof RiskSettingsUI !== "undefined") {
+      RiskSettingsUI.init({});
     }
   }
 

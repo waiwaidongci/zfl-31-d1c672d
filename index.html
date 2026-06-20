@@ -74,6 +74,45 @@
       <div class="preview" id="preview"></div>
       <h2>断线风险</h2>
       <div id="risk"></div>
+      <div class="risk-settings-section">
+        <button class="risk-settings-toggle secondary" id="riskSettingsToggle">⚙ 风险规则设置</button>
+        <div class="risk-settings-panel" id="riskSettingsPanel" style="display:none;">
+          <div class="risk-settings-item">
+            <label>高风险阈值</label>
+            <div class="risk-slider-row">
+              <input type="range" id="highRiskThreshold" min="0.3" max="0.95" step="0.01" value="0.62">
+              <span class="risk-slider-value" id="highRiskThresholdValue">62%</span>
+            </div>
+            <p class="risk-settings-desc">换色密度超过此比例判定为高风险</p>
+          </div>
+          <div class="risk-settings-item">
+            <label>中风险阈值</label>
+            <div class="risk-slider-row">
+              <input type="range" id="mediumRiskThreshold" min="0.1" max="0.7" step="0.01" value="0.35">
+              <span class="risk-slider-value" id="mediumRiskThresholdValue">35%</span>
+            </div>
+            <p class="risk-settings-desc">换色密度超过此比例判定为中风险</p>
+          </div>
+          <div class="risk-settings-item">
+            <label class="risk-checkbox-label">
+              <input type="checkbox" id="countShortSegments">
+              <span>将连续短色段计入风险</span>
+            </label>
+            <p class="risk-settings-desc">启用后，连续出现的短色段会额外增加风险权重</p>
+          </div>
+          <div class="risk-settings-item" id="shortSegmentMaxLengthItem" style="display:none;">
+            <label>短色段最大长度</label>
+            <div class="risk-slider-row">
+              <input type="range" id="shortSegmentMaxLength" min="1" max="10" step="1" value="2">
+              <span class="risk-slider-value" id="shortSegmentMaxLengthValue">2 格</span>
+            </div>
+            <p class="risk-settings-desc">长度小于等于此值的色段被视为短色段</p>
+          </div>
+          <div class="risk-settings-actions">
+            <button class="secondary" id="resetRiskSettings">恢复默认</button>
+          </div>
+        </div>
+      </div>
       <div class="vt-section-toggle">
         <h2>版本历史</h2>
       </div>
@@ -92,6 +131,7 @@
   <script src="js/template-data.js"></script>
   <script src="js/template-apply.js"></script>
   <script src="js/template-ui.js"></script>
+  <script src="js/risk-config.js"></script>
   <script src="js/process-calc.js"></script>
   <script src="js/process-view.js"></script>
   <script src="js/import-parser.js"></script>
@@ -113,6 +153,7 @@
   <script src="js/grid-render.js"></script>
   <script src="js/scheme-ui.js"></script>
   <script src="js/import-export.js"></script>
+  <script src="js/risk-settings-ui.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

@@ -64,15 +64,73 @@ const CompareCalc = (function() {
   }
 
   function getRiskRows(cells, cols, rows) {
+    if (typeof ProcessCalc !== 'undefined') {
+      const steps = ProcessCalc.computeAllSteps(cells, cols, rows);
+      return steps.filter(s => s.riskLevel === 'high' || s.riskLevel === 'medium').map(s => s.row);
+    }
+
+    const riskConfig = typeof RiskConfig !== 'undefined'
+      ? RiskConfig.getAll()
+      : { highRiskThreshold: 0.62, mediumRiskThreshold: 0.35, countShortSegments: false, shortSegmentMaxLength: 2 };
+
     const riskRows = [];
     for (let y = 0; y < rows; y++) {
-      let switches = 0;
+      const start = y * cols;
+      const segments = [];
+      let currentColor = cells[start];
+      let currentLength = 1;
+
       for (let x = 1; x < cols; x++) {
-        if (cells[y * cols + x] !== cells[y * cols + x - 1]) switches++;
+        const c = cells[start + x];
+        if (c === currentColor) {
+          currentLength++;
+        } else {
+          segments.push({ threadId: currentColor, length: currentLength });
+          currentColor = c;
+          currentLength = 1;
+        }
       }
-      if (switches > cols * 0.62) riskRows.push(y + 1);
+      segments.push({ threadId: currentColor, length: currentLength });
+
+      let switches = 0;
+      for (let i = 1; i < segments.length; i++) {
+        if (segments[i].threadId !== segments[i - 1].threadId) {
+          switches++;
+        }
+      }
+
+      let effectiveSwitches = switches;
+      if (riskConfig.countShortSegments) {
+        let shortCount = 0;
+        for (let i = 0; i < segments.length; i++) {
+          if (segments[i].length <= riskConfig.shortSegmentMaxLength) {
+            shortCount++;
+          }
+        }
+        effectiveSwitches += shortCount;
+      }
+
+      if (effectiveSwitches > cols * riskConfig.highRiskThreshold ||
+          effectiveSwitches > cols * riskConfig.mediumRiskThreshold) {
+        riskRows.push(y + 1);
+      }
     }
     return riskRows;
+  }
+
+  function getRiskRowsDetail(cells, cols, rows) {
+    if (typeof ProcessCalc !== 'undefined') {
+      const steps = ProcessCalc.computeAllSteps(cells, cols, rows);
+      return steps.map(s => ({
+        row: s.row,
+        level: s.riskLevel,
+        note: s.riskNote,
+        switchCount: s.switchCount,
+        shortSegmentCount: s.shortSegmentCount,
+        effectiveSwitchCount: s.effectiveSwitchCount
+      }));
+    }
+    return getRiskRows(cells, cols, rows).map(r => ({ row: r, level: 'high' }));
   }
 
   function compareRiskRows(schemeA, schemeB) {
@@ -164,6 +222,7 @@ const CompareCalc = (function() {
     compareRiskRows,
     computeCellDifferences,
     compareAll,
-    getRiskRows
+    getRiskRows,
+    getRiskRowsDetail
   };
 })();

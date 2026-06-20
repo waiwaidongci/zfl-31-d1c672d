@@ -1,6 +1,20 @@
 const ProcessCalc = (function() {
 
-  var RISK_RATIO = 0.62;
+  function countShortSegmentRuns(segments, maxShortLength) {
+    var count = 0;
+    var inShortRun = false;
+    for (var i = 0; i < segments.length; i++) {
+      if (segments[i].length <= maxShortLength) {
+        if (!inShortRun) {
+          inShortRun = true;
+        }
+        count++;
+      } else {
+        inShortRun = false;
+      }
+    }
+    return count;
+  }
 
   function computeRowSteps(cells, cols, rowIndex) {
     var start = rowIndex * cols;
@@ -27,26 +41,46 @@ const ProcessCalc = (function() {
       }
     }
 
+    var riskConfig = typeof RiskConfig !== 'undefined'
+      ? RiskConfig.getAll()
+      : { highRiskThreshold: 0.62, mediumRiskThreshold: 0.35, countShortSegments: false, shortSegmentMaxLength: 2 };
+
+    var effectiveSwitches = switches;
+    var shortSegmentCount = 0;
+
+    if (riskConfig.countShortSegments) {
+      shortSegmentCount = countShortSegmentRuns(segments, riskConfig.shortSegmentMaxLength);
+      effectiveSwitches += shortSegmentCount;
+    }
+
     var riskLevel = "none";
     var riskNote = "";
     if (switches === 0) {
       riskLevel = "none";
       riskNote = "整纬同色，无需换色";
-    } else if (switches > cols * RISK_RATIO) {
+    } else if (effectiveSwitches > cols * riskConfig.highRiskThreshold) {
       riskLevel = "high";
-      riskNote = "换色过密，断线风险高";
-    } else if (switches > cols * 0.35) {
+      riskNote = shortSegmentCount > 0
+        ? "换色过密（含" + shortSegmentCount + "个短色段），断线风险高"
+        : "换色过密，断线风险高";
+    } else if (effectiveSwitches > cols * riskConfig.mediumRiskThreshold) {
       riskLevel = "medium";
-      riskNote = "换色较频繁，注意张力";
+      riskNote = shortSegmentCount > 0
+        ? "换色较频繁（含" + shortSegmentCount + "个短色段），注意张力"
+        : "换色较频繁，注意张力";
     } else {
       riskLevel = "low";
-      riskNote = "换色适度，风险较低";
+      riskNote = shortSegmentCount > 0
+        ? "换色适度（含" + shortSegmentCount + "个短色段），风险较低"
+        : "换色适度，风险较低";
     }
 
     return {
       row: rowIndex + 1,
       segments: segments,
       switchCount: switches,
+      shortSegmentCount: shortSegmentCount,
+      effectiveSwitchCount: effectiveSwitches,
       riskLevel: riskLevel,
       riskNote: riskNote
     };
@@ -62,6 +96,8 @@ const ProcessCalc = (function() {
 
   function computeSummary(steps) {
     var totalSwitches = 0;
+    var totalEffectiveSwitches = 0;
+    var totalShortSegments = 0;
     var highRiskRows = [];
     var mediumRiskRows = [];
     var colorUsage = {};
@@ -69,6 +105,8 @@ const ProcessCalc = (function() {
     for (var i = 0; i < steps.length; i++) {
       var step = steps[i];
       totalSwitches += step.switchCount;
+      totalEffectiveSwitches += step.effectiveSwitchCount;
+      totalShortSegments += step.shortSegmentCount;
       if (step.riskLevel === "high") {
         highRiskRows.push(step.row);
       } else if (step.riskLevel === "medium") {
@@ -86,6 +124,8 @@ const ProcessCalc = (function() {
 
     return {
       totalSwitches: totalSwitches,
+      totalEffectiveSwitches: totalEffectiveSwitches,
+      totalShortSegments: totalShortSegments,
       highRiskRows: highRiskRows,
       mediumRiskRows: mediumRiskRows,
       colorUsage: colorUsage
@@ -119,15 +159,20 @@ const ProcessCalc = (function() {
       });
     }
 
+    var riskConfig = typeof RiskConfig !== 'undefined' ? RiskConfig.getAll() : null;
+
     return {
       name: scheme.name,
       cols: cols,
       rows: rows,
+      riskConfig: riskConfig,
       steps: steps.map(function(s) {
         return {
           row: s.row,
           segments: s.segments,
           switchCount: s.switchCount,
+          shortSegmentCount: s.shortSegmentCount,
+          effectiveSwitchCount: s.effectiveSwitchCount,
           riskLevel: s.riskLevel,
           riskNote: s.riskNote
         };
@@ -135,6 +180,8 @@ const ProcessCalc = (function() {
       threads: threads || [],
       summary: {
         totalSwitches: summary.totalSwitches,
+        totalEffectiveSwitches: summary.totalEffectiveSwitches,
+        totalShortSegments: summary.totalShortSegments,
         highRiskRows: summary.highRiskRows,
         mediumRiskRows: summary.mediumRiskRows,
         colorSummary: colorSummary

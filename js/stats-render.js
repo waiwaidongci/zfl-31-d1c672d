@@ -80,21 +80,82 @@ const StatsRender = (function() {
   }
 
   function computeRiskRows(cells, cols, rows) {
+    if (typeof ProcessCalc !== 'undefined') {
+      const steps = ProcessCalc.computeAllSteps(cells, cols, rows);
+      return steps.filter(s => s.riskLevel === 'high' || s.riskLevel === 'medium').map(s => ({
+        row: s.row,
+        level: s.riskLevel,
+        note: s.riskNote
+      }));
+    }
+
+    const riskConfig = typeof RiskConfig !== 'undefined'
+      ? RiskConfig.getAll()
+      : { highRiskThreshold: 0.62, mediumRiskThreshold: 0.35, countShortSegments: false, shortSegmentMaxLength: 2 };
+
     const riskRows = [];
     for (let y = 0; y < rows; y++) {
-      let switches = 0;
+      const start = y * cols;
+      const segments = [];
+      let currentColor = cells[start];
+      let currentLength = 1;
+
       for (let x = 1; x < cols; x++) {
-        if (cells[y*cols+x] !== cells[y*cols+x-1]) switches++;
+        const c = cells[start + x];
+        if (c === currentColor) {
+          currentLength++;
+        } else {
+          segments.push({ threadId: currentColor, length: currentLength });
+          currentColor = c;
+          currentLength = 1;
+        }
       }
-      if (switches > cols * .62) riskRows.push(y + 1);
+      segments.push({ threadId: currentColor, length: currentLength });
+
+      let switches = 0;
+      for (let i = 1; i < segments.length; i++) {
+        if (segments[i].threadId !== segments[i - 1].threadId) {
+          switches++;
+        }
+      }
+
+      let effectiveSwitches = switches;
+      if (riskConfig.countShortSegments) {
+        let shortCount = 0;
+        for (let i = 0; i < segments.length; i++) {
+          if (segments[i].length <= riskConfig.shortSegmentMaxLength) {
+            shortCount++;
+          }
+        }
+        effectiveSwitches += shortCount;
+      }
+
+      if (effectiveSwitches > cols * riskConfig.highRiskThreshold) {
+        riskRows.push({ row: y + 1, level: 'high' });
+      } else if (effectiveSwitches > cols * riskConfig.mediumRiskThreshold) {
+        riskRows.push({ row: y + 1, level: 'medium' });
+      }
     }
     return riskRows;
   }
 
   function renderRisk(riskEl, riskRows) {
-    riskEl.innerHTML = riskRows.length
-      ? '<p class="warning">第'+riskRows.join("、")+'行换色过密，可能断线。</p>'
-      : '<p>暂无明显断线风险。</p>';
+    if (!riskRows || riskRows.length === 0) {
+      riskEl.innerHTML = '<p>暂无明显断线风险。</p>';
+      return;
+    }
+
+    const highRisk = riskRows.filter(r => r.level === 'high');
+    const mediumRisk = riskRows.filter(r => r.level === 'medium');
+
+    let html = '';
+    if (highRisk.length > 0) {
+      html += '<p class="warning">第' + highRisk.map(r => r.row).join('、') + '行换色过密，断线风险高。</p>';
+    }
+    if (mediumRisk.length > 0) {
+      html += '<p class="warning-medium">第' + mediumRisk.map(r => r.row).join('、') + '行换色较频繁，注意张力。</p>';
+    }
+    riskEl.innerHTML = html;
   }
 
   function renderAll(options) {
