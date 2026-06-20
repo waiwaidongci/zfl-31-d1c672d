@@ -170,7 +170,7 @@ const VersionHistory = (function() {
     }
 
     var undoArr = (scheme.undo || []).slice();
-    undoArr.push(oldCells);
+    undoArr.push({ cells: oldCells, cols: scheme.cols, rows: scheme.rows });
     if (undoArr.length > 50) undoArr.shift();
 
     SchemeStore.update(schemeId, {
@@ -212,8 +212,10 @@ const VersionHistory = (function() {
     }
 
     var oldCells = scheme.cells.slice();
+    var oldCols = scheme.cols;
+    var oldRows = scheme.rows;
     var undoArr = (scheme.undo || []).slice();
-    undoArr.push(oldCells);
+    undoArr.push({ cells: oldCells, cols: oldCols, rows: oldRows });
     if (undoArr.length > 50) undoArr.shift();
 
     SchemeStore.update(schemeId, {

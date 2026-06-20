@@ -305,15 +305,27 @@ const App = (function() {
     var undoArr = AppState.undo;
     if (!undoArr.length) return;
     var last = undoArr.pop();
-    SchemeStore.update(SchemeStore.getActiveId(), {
+    var isObj = last && typeof last === 'object' && !Array.isArray(last);
+    var restoreCells = isObj ? last.cells : last;
+    var restoreCols = isObj ? last.cols : AppState.cols;
+    var restoreRows = isObj ? last.rows : AppState.rows;
+    var redoItem = { cells: AppState.cells.slice(), cols: AppState.cols, rows: AppState.rows };
+    var patch = {
       undo: undoArr,
-      redo: AppState.redo.concat([AppState.cells.slice()]),
-      cells: last
-    });
+      redo: AppState.redo.concat([redoItem]),
+      cells: restoreCells
+    };
+    if (restoreCols !== AppState.cols) patch.cols = restoreCols;
+    if (restoreRows !== AppState.rows) patch.rows = restoreRows;
+    SchemeStore.update(SchemeStore.getActiveId(), patch);
     AppState.templatePreview = null;
     if (typeof TemplateUI !== 'undefined' && typeof TemplateUI.clearPreviewState === 'function') {
       TemplateUI.clearPreviewState();
     }
+    if (patch.cols != null) _colsInput.value = patch.cols;
+    if (patch.rows != null) _rowsInput.value = patch.rows;
+    GridInteraction.setGridSize(restoreCols, restoreRows);
+    SelectionState.reset();
     GridRender.render();
     SchemeUI.renderSchemeList();
   }
@@ -322,15 +334,27 @@ const App = (function() {
     var redoArr = AppState.redo;
     if (!redoArr.length) return;
     var last = redoArr.pop();
-    SchemeStore.update(SchemeStore.getActiveId(), {
+    var isObj = last && typeof last === 'object' && !Array.isArray(last);
+    var restoreCells = isObj ? last.cells : last;
+    var restoreCols = isObj ? last.cols : AppState.cols;
+    var restoreRows = isObj ? last.rows : AppState.rows;
+    var undoItem = { cells: AppState.cells.slice(), cols: AppState.cols, rows: AppState.rows };
+    var patch = {
       redo: redoArr,
-      undo: AppState.undo.concat([AppState.cells.slice()]),
-      cells: last
-    });
+      undo: AppState.undo.concat([undoItem]),
+      cells: restoreCells
+    };
+    if (restoreCols !== AppState.cols) patch.cols = restoreCols;
+    if (restoreRows !== AppState.rows) patch.rows = restoreRows;
+    SchemeStore.update(SchemeStore.getActiveId(), patch);
     AppState.templatePreview = null;
     if (typeof TemplateUI !== 'undefined' && typeof TemplateUI.clearPreviewState === 'function') {
       TemplateUI.clearPreviewState();
     }
+    if (patch.cols != null) _colsInput.value = patch.cols;
+    if (patch.rows != null) _rowsInput.value = patch.rows;
+    GridInteraction.setGridSize(restoreCols, restoreRows);
+    SelectionState.reset();
     GridRender.render();
     SchemeUI.renderSchemeList();
   }
