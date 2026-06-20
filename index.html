@@ -14,7 +14,14 @@
 <body>
   <header>
     <div><h1>手工织锦纹样排版台</h1><div>绘制经纬网格纹样，统计色线用量并保存方案。</div></div>
-    <div class="toolbar toolbar-4"><button id="saveBtn">保存当前方案</button><button id="exportBtn" class="secondary">导出JSON</button><button id="exportSvgBtn" class="secondary">导出SVG</button><button id="importBtn" class="secondary">导入JSON</button></div>
+    <div class="toolbar toolbar-6">
+      <button id="saveBtn">保存当前方案</button>
+      <button id="exportBtn" class="secondary">导出方案JSON</button>
+      <button id="exportSvgBtn" class="secondary">导出SVG</button>
+      <button id="importBtn" class="secondary">导入方案JSON</button>
+      <button id="exportPackageBtn" class="secondary">📦 导出项目包</button>
+      <button id="importPackageBtn" class="secondary">📦 导入项目包</button>
+    </div>
   </header>
   <main class="app">
     <aside class="panel">
@@ -191,6 +198,8 @@
   <script src="js/scheme-ui.js"></script>
   <script src="js/import-export.js"></script>
   <script src="js/risk-settings-ui.js"></script>
+  <script src="js/project-package.js"></script>
+  <script src="js/project-package-dialog.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

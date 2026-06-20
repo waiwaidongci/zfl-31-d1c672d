@@ -307,6 +307,10 @@ const App = (function() {
     if (typeof RiskSettingsUI !== "undefined") {
       RiskSettingsUI.init({});
     }
+
+    if (typeof ProjectPackageDialog !== "undefined") {
+      ProjectPackageDialog.init({});
+    }
   }
 
   function _bindGlobalEvents() {
@@ -351,6 +355,8 @@ const App = (function() {
     document.querySelector("#newSchemeBtn").onclick = _handleNewScheme;
     document.querySelector("#selectModeBtn").onclick = _handleToggleMode;
     document.querySelector("#viewToggleBtn").onclick = _handleViewToggle;
+    document.querySelector("#exportPackageBtn").onclick = _handleExportPackage;
+    document.querySelector("#importPackageBtn").onclick = _handleImportPackage;
   }
 
   function _bindSchemeEvents() {}
@@ -492,6 +498,32 @@ const App = (function() {
 
   function _handleImport() {
     ImportExport.importJSON();
+  }
+
+  function _handleExportPackage() {
+    ProjectPackage.exportProjectPackage();
+  }
+
+  function _handleImportPackage() {
+    if (typeof ProjectPackageDialog !== "undefined") {
+      ProjectPackageDialog.open({
+        onImport: function(result) {
+          document.querySelector("#cols").value = AppState.cols;
+          document.querySelector("#rows").value = AppState.rows;
+          SchemeUI.refreshAll();
+          if (typeof BlockUI !== "undefined" && typeof BlockUI.render === "function") {
+            BlockUI.render();
+          }
+          if (typeof ThreadPanel !== "undefined" && typeof ThreadPanel.refresh === "function") {
+            ThreadPanel.refresh();
+          }
+          if (typeof VersionTimelineUI !== "undefined" && typeof VersionTimelineUI.refresh === "function") {
+            VersionTimelineUI.refresh();
+          }
+          GridRender.render();
+        }
+      });
+    }
   }
 
   function _handleNewScheme() {

@@ -70,7 +70,7 @@ const BlockStore = (function() {
   }
 
   function create(options) {
-    const id = uid();
+    const id = options.idOverride || uid();
     const now = Date.now();
     const block = {
       id,
