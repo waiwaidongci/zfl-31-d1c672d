@@ -252,9 +252,7 @@ const ProjectPackage = (function() {
       "zfl31Schemes",
       "zfl31ActiveScheme",
       "zfl31Threads",
-      "zfl31CustomBlocks",
-      "zfl31ExportConfig",
-      "zfl31RiskConfig"
+      "zfl31CustomBlocks"
     ];
     ALL_KEYS.forEach(function(k) {
       try { localStorage.removeItem(k); } catch (e) {}
@@ -268,8 +266,14 @@ const ProjectPackage = (function() {
       } catch (e) {}
     }
     if (typeof BlockStore !== "undefined" && BlockStore.load) BlockStore.load();
-    if (typeof ExportConfig !== "undefined" && ExportConfig.reset) ExportConfig.reset();
-    if (typeof RiskConfig !== "undefined" && RiskConfig.reset) RiskConfig.reset();
+    if (options.importExportConfig && typeof ExportConfig !== "undefined" && ExportConfig.reset) {
+      try { localStorage.removeItem("zfl31ExportConfig"); } catch (e) {}
+      ExportConfig.reset();
+    }
+    if (options.importRiskConfig && typeof RiskConfig !== "undefined" && RiskConfig.reset) {
+      try { localStorage.removeItem("zfl31RiskConfig"); } catch (e) {}
+      RiskConfig.reset();
+    }
 
     const threadMap = {};
     const importedThreads = pkg.threads.map(function(t, i) {
