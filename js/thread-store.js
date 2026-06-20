@@ -88,6 +88,19 @@ const ThreadStore = (function() {
     } catch (e) {}
   }
 
+  function _syncLoadedSchemeStore(schemes) {
+    try {
+      if (typeof SchemeStore === "undefined" || !SchemeStore || !SchemeStore._schemes) {
+        return;
+      }
+      Object.keys(schemes).forEach(id => {
+        if (SchemeStore._schemes[id]) {
+          SchemeStore._schemes[id] = schemes[id];
+        }
+      });
+    } catch (e) {}
+  }
+
   function _persist() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(_threads));
     _notify();
@@ -206,6 +219,7 @@ const ThreadStore = (function() {
 
       if (changed) {
         localStorage.setItem("zfl31Schemes", JSON.stringify(schemes));
+        _syncLoadedSchemeStore(schemes);
       }
     } catch (e) {}
   }
