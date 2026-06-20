@@ -105,17 +105,22 @@ const BlockEditor = (function() {
     const colsInput = _overlay.querySelector("#blockCols");
     const rowsInput = _overlay.querySelector("#blockRows");
 
-    colsInput.addEventListener("change", () => {
+    const syncSize = (force = false) => {
+      if (!_editingData) return;
+      if (!force && (colsInput.value === "" || rowsInput.value === "")) return;
       const newCols = Math.max(1, Math.min(12, parseInt(colsInput.value) || 1));
-      colsInput.value = newCols;
-      _resizePattern(newCols, _editingData.rows);
-    });
-
-    rowsInput.addEventListener("change", () => {
       const newRows = Math.max(1, Math.min(12, parseInt(rowsInput.value) || 1));
+      colsInput.value = newCols;
       rowsInput.value = newRows;
-      _resizePattern(_editingData.cols, newRows);
-    });
+      if (newCols !== _editingData.cols || newRows !== _editingData.rows) {
+        _resizePattern(newCols, newRows);
+      }
+    };
+
+    colsInput.addEventListener("input", () => syncSize());
+    rowsInput.addEventListener("input", () => syncSize());
+    colsInput.addEventListener("change", () => syncSize(true));
+    rowsInput.addEventListener("change", () => syncSize(true));
 
     const gridEl = _overlay.querySelector("#blockEditorGrid");
 
@@ -194,7 +199,15 @@ const BlockEditor = (function() {
 
   function _save() {
     const nameInput = _overlay.querySelector("#blockName");
+    const colsInput = _overlay.querySelector("#blockCols");
+    const rowsInput = _overlay.querySelector("#blockRows");
     const name = nameInput.value.trim() || "未命名纹样块";
+    const newCols = Math.max(1, Math.min(12, parseInt(colsInput.value) || 1));
+    const newRows = Math.max(1, Math.min(12, parseInt(rowsInput.value) || 1));
+
+    if (newCols !== _editingData.cols || newRows !== _editingData.rows) {
+      _resizePattern(newCols, newRows);
+    }
 
     if (_currentBlockId) {
       BlockStore.update(_currentBlockId, {
