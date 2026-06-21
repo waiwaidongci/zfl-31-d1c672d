@@ -326,47 +326,12 @@ const ProjectPackage = (function() {
       schemeMap[s.id] = newId;
       result.idMap.schemes[s.id] = newId;
 
-      const normalizedCells = _remapCells(s.cells, threadMap, currentThreads);
+      const schemeData = _buildSchemeData(s, threadMap, result.idMap.blocks, currentThreads, result.idMap);
+      schemeData.id = newId;
+      result.imported.versions += schemeData._versionCount;
+      delete schemeData._versionCount;
 
-      const versions = (s.versions || []).map(function(v) {
-        const newVersionId = v.id || uid("v");
-        result.idMap.versions[v.id] = newVersionId;
-        return {
-          id: newVersionId,
-          timestamp: v.timestamp,
-          label: v.label || "",
-          cells: _remapCells(v.cells, threadMap, currentThreads),
-          cols: v.cols || s.cols,
-          rows: v.rows || s.rows,
-          name: v.name || s.name,
-          colorStats: v.colorStats ? _remapColorStats(v.colorStats, threadMap) : null,
-          riskRows: v.riskRows || [],
-          thumbnailData: v.thumbnailData || null
-        };
-      });
-      result.imported.versions += versions.length;
-
-      const defaultEstimate = typeof YarnEstimate !== "undefined" ? YarnEstimate.getDefaults() : null;
-      const now = Date.now();
-
-      SchemeStore._schemes[newId] = {
-        id: newId,
-        name: s.name,
-        cols: s.cols,
-        rows: s.rows,
-        cells: normalizedCells,
-        activeColor: _remapThreadId(s.activeColor, threadMap, currentThreads),
-        activeBlock: _remapBlockId(s.activeBlock, result.idMap.blocks),
-        undo: [],
-        redo: [],
-        versions: versions,
-        favorite: s.favorite || false,
-        tags: s.tags || [],
-        estimateConfig: s.estimateConfig || defaultEstimate,
-        createdAt: s.createdAt || now,
-        updatedAt: s.updatedAt || now
-      };
-
+      SchemeStore._schemes[newId] = schemeData;
       result.imported.schemes++;
     });
 
@@ -538,98 +503,40 @@ const ProjectPackage = (function() {
   }
 
   function _createMergedScheme(s, threadIdMap, blockIdMap, currentThreads, result, forceId) {
-    const normalizedCells = _remapCells(s.cells, threadIdMap, currentThreads);
-    const versions = (s.versions || []).map(function(v) {
-      const newVersionId = v.id || uid("v");
-      result.idMap.versions[v.id] = newVersionId;
-      return {
-        id: newVersionId,
-        timestamp: v.timestamp,
-        label: v.label || "",
-        cells: _remapCells(v.cells, threadIdMap, currentThreads),
-        cols: v.cols || s.cols,
-        rows: v.rows || s.rows,
-        name: v.name || s.name,
-        colorStats: v.colorStats ? _remapColorStats(v.colorStats, threadIdMap) : null,
-        riskRows: v.riskRows || [],
-        thumbnailData: v.thumbnailData || null
-      };
-    });
-    result.imported.versions += versions.length;
-
-    const defaultEstimate = typeof YarnEstimate !== "undefined" ? YarnEstimate.getDefaults() : null;
-    const now = Date.now();
+    const schemeData = _buildSchemeData(s, threadIdMap, blockIdMap, currentThreads, result.idMap);
+    result.imported.versions += schemeData._versionCount;
+    delete schemeData._versionCount;
 
     if (forceId) {
-      SchemeStore._schemes[forceId] = {
-        id: forceId,
-        name: s.name,
-        cols: s.cols,
-        rows: s.rows,
-        cells: normalizedCells,
-        activeColor: _remapThreadId(s.activeColor, threadIdMap, currentThreads),
-        activeBlock: _remapBlockId(s.activeBlock, blockIdMap),
-        undo: [],
-        redo: [],
-        versions: versions,
-        favorite: s.favorite || false,
-        tags: s.tags || [],
-        estimateConfig: s.estimateConfig || defaultEstimate,
-        createdAt: s.createdAt || now,
-        updatedAt: s.updatedAt || now
-      };
+      schemeData.id = forceId;
+      SchemeStore._schemes[forceId] = schemeData;
       try { localStorage.setItem("zfl31Schemes", JSON.stringify(SchemeStore._schemes)); } catch (e) {}
       result.imported.schemes++;
       return forceId;
     } else {
       const newScheme = SchemeStore.create(s.name, s.cols, s.rows);
-      SchemeStore.update(newScheme.id, {
-        cells: normalizedCells,
-        activeColor: _remapThreadId(s.activeColor, threadIdMap, currentThreads),
-        activeBlock: _remapBlockId(s.activeBlock, blockIdMap),
-        versions: versions,
-        favorite: s.favorite || false,
-        tags: s.tags || [],
-        estimateConfig: s.estimateConfig || defaultEstimate,
-        createdAt: s.createdAt || now,
-        updatedAt: s.updatedAt || now
+      const updateData = {};
+      Object.keys(schemeData).forEach(function(key) {
+        if (key !== "id") updateData[key] = schemeData[key];
       });
+      SchemeStore.update(newScheme.id, updateData);
       result.imported.schemes++;
       return newScheme.id;
     }
   }
 
   function _updateMergedScheme(schemeId, s, threadIdMap, blockIdMap, currentThreads, result) {
-    const normalizedCells = _remapCells(s.cells, threadIdMap, currentThreads);
-
     const existing = SchemeStore.getById(schemeId);
     const existingVersionIds = {};
     (existing.versions || []).forEach(function(v) { existingVersionIds[v.id] = true; });
 
-    const versions = (s.versions || []).map(function(v) {
-      let newVersionId;
-      if (v.id && existingVersionIds[v.id]) {
-        newVersionId = uid("v");
-      } else {
-        newVersionId = v.id || uid("v");
-      }
-      result.idMap.versions[v.id] = newVersionId;
-      return {
-        id: newVersionId,
-        timestamp: v.timestamp,
-        label: v.label || "",
-        cells: _remapCells(v.cells, threadIdMap, currentThreads),
-        cols: v.cols || s.cols,
-        rows: v.rows || s.rows,
-        name: v.name || s.name,
-        colorStats: v.colorStats ? _remapColorStats(v.colorStats, threadIdMap) : null,
-        riskRows: v.riskRows || [],
-        thumbnailData: v.thumbnailData || null
-      };
+    const schemeData = _buildSchemeData(s, threadIdMap, blockIdMap, currentThreads, result.idMap, {
+      idConflictStrategy: "dedupe_new",
+      existingVersionIds: existingVersionIds
     });
-    result.imported.versions += versions.length;
+    result.imported.versions += schemeData._versionCount;
 
-    const mergedVersions = (existing.versions || []).concat(versions);
+    const mergedVersions = (existing.versions || []).concat(schemeData.versions);
     mergedVersions.sort(function(a, b) { return a.timestamp - b.timestamp; });
     if (mergedVersions.length > 30) {
       mergedVersions.splice(0, mergedVersions.length - 30);
@@ -641,9 +548,9 @@ const ProjectPackage = (function() {
       name: s.name,
       cols: s.cols,
       rows: s.rows,
-      cells: normalizedCells,
-      activeColor: _remapThreadId(s.activeColor, threadIdMap, currentThreads),
-      activeBlock: _remapBlockId(s.activeBlock, blockIdMap),
+      cells: schemeData.cells,
+      activeColor: schemeData.activeColor,
+      activeBlock: schemeData.activeBlock,
       versions: mergedVersions,
       favorite: s.favorite || existing.favorite || false,
       tags: s.tags || existing.tags || [],
@@ -697,6 +604,74 @@ const ProjectPackage = (function() {
       }
       return Object.assign({}, s, { id: newId });
     });
+  }
+
+  function _buildVersions(pkgVersions, schemeCols, schemeRows, schemeName, threadIdMap, currentThreads, resultIdMap, options) {
+    if (!pkgVersions || !Array.isArray(pkgVersions)) return [];
+    options = options || {};
+    const idConflictStrategy = options.idConflictStrategy || "always_new";
+    const existingVersionIds = options.existingVersionIds || {};
+
+    return pkgVersions.map(function(v) {
+      let newVersionId;
+      if (idConflictStrategy === "keep_id" && v.id) {
+        newVersionId = v.id;
+      } else if (idConflictStrategy === "dedupe_new" && v.id && existingVersionIds[v.id]) {
+        newVersionId = uid("v");
+      } else {
+        newVersionId = v.id || uid("v");
+      }
+      if (resultIdMap && resultIdMap.versions) {
+        resultIdMap.versions[v.id] = newVersionId;
+      }
+      return {
+        id: newVersionId,
+        timestamp: v.timestamp,
+        label: v.label || "",
+        cells: _remapCells(v.cells, threadIdMap, currentThreads),
+        cols: v.cols || schemeCols,
+        rows: v.rows || schemeRows,
+        name: v.name || schemeName,
+        colorStats: v.colorStats ? _remapColorStats(v.colorStats, threadIdMap) : null,
+        riskRows: v.riskRows || [],
+        thumbnailData: v.thumbnailData || null
+      };
+    });
+  }
+
+  function _buildSchemeData(pkgScheme, threadIdMap, blockIdMap, currentThreads, resultIdMap, versionOptions) {
+    const normalizedCells = _remapCells(pkgScheme.cells, threadIdMap, currentThreads);
+    const versions = _buildVersions(
+      pkgScheme.versions,
+      pkgScheme.cols,
+      pkgScheme.rows,
+      pkgScheme.name,
+      threadIdMap,
+      currentThreads,
+      resultIdMap,
+      versionOptions
+    );
+
+    const defaultEstimate = typeof YarnEstimate !== "undefined" ? YarnEstimate.getDefaults() : null;
+    const now = Date.now();
+
+    return {
+      name: pkgScheme.name,
+      cols: pkgScheme.cols,
+      rows: pkgScheme.rows,
+      cells: normalizedCells,
+      activeColor: _remapThreadId(pkgScheme.activeColor, threadIdMap, currentThreads),
+      activeBlock: _remapBlockId(pkgScheme.activeBlock, blockIdMap),
+      undo: [],
+      redo: [],
+      versions: versions,
+      favorite: pkgScheme.favorite || false,
+      tags: pkgScheme.tags || [],
+      estimateConfig: pkgScheme.estimateConfig || defaultEstimate,
+      createdAt: pkgScheme.createdAt || now,
+      updatedAt: pkgScheme.updatedAt || now,
+      _versionCount: versions.length
+    };
   }
 
   return {
