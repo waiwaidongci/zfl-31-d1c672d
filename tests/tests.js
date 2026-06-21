@@ -129,7 +129,7 @@ const TestRunner = (function () {
       assertEqual(result.segments[0], { threadId: "A", length: 10 });
     });
 
-    test("交替换色 ABAB...：switchCount 约等于段数-1", function () {
+    test("交替换色 ABAB...：switchCount 精确计数且 riskLevel=high", function () {
       resetRiskConfig();
       const cols = 8;
       const cells = ["A", "B", "A", "B", "A", "B", "A", "B"];
@@ -138,8 +138,7 @@ const TestRunner = (function () {
       assertEqual(result.segments.length, 8, "ABAB 8 列应产生 8 个色段");
       assertEqual(result.switchCount, 7, "ABAB 8 列应有 7 次换色");
       assertEqual(result.shortSegmentCount, 0, "默认不启用短色段计数时应为 0");
-      assertTrue(result.riskLevel === "medium" || result.riskLevel === "high",
-        "高密度换色应至少为 medium 风险");
+      assertEqual(result.riskLevel, "high", "默认阈值下 7/8 换色密度应为 high 风险");
     });
 
     test("低密度换色 AAABBBAA：switchCount 精确计数", function () {
